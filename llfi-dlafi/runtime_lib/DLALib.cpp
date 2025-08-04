@@ -18,9 +18,10 @@ static long long shape[10000]= {0};
 static int layers[10000]={0};
 
 static int64_t DLALayerNum=0;
-static std::set <int> input_indices[SETSIZE], weight_indices[SETSIZE] , weight_indices_prof[18][16][SETSIZE];
+static std::set <int> input_indices[SETSIZE], weight_indices[SETSIZE] , weight_indices_prof[16][16][SETSIZE];
+static int utilization[16][16][SETSIZE];
 // static std::unordered_set <std::pair<int, int> > input_weight_indices[SETSIZE];
-static int  SAdim=0, sampler=1;
+static int  SAdim=0, sampler=1, FIMACX=0, FIMACY=0;
 static int total_layers = 0, fi_layer = -1;
 static bool do_fi=false;
 static FILE *IndexFile, *MLlayerFile, *SAConfigFile, *Layer_SAConfigFile;
@@ -112,6 +113,20 @@ extern "C" {
     }
 
     void read_indices(int mac_x,int mac_y){
+        FIMACX = mac_x;
+        FIMACY = mac_y;
+        fprintf(stderr, "----------MACX : %d  MACY: %d\n",FIMACX,FIMACY);
+        FILE *utilFile;
+        std::string utilfilename = "./FIutil/DLAFI.indices."+std::to_string(FIMACX)+"."+std::to_string(FIMACY)+".txt";
+        utilFile = fopen(utilfilename.c_str(), "w");
+        if (utilFile == NULL) {
+            fprintf(stderr, "ERROR: Unable to open index file ** %s\n",
+                    utilfilename);
+            exit(1);
+        }
+        fprintf(utilFile, "#Do not Edit\n");
+        fclose(utilFile);
+
 
         fprintf(stderr,"Read Faulty Indices\n");
         DLALayerNum=0;
@@ -170,6 +185,16 @@ extern "C" {
                       int8_t* outputStrides, int64_t inputShapeRank,
                       int8_t* inputShapePtr) {
         // fprintf(stderr,"num faults in layer %d: %d \n",DLALayerNum,myfault);
+        FILE *utilFile;
+        std::string utilfilename = "./FIutil/DLAFI.indices."+std::to_string(FIMACX)+"."+std::to_string(FIMACY)+".txt";
+        utilFile = fopen(utilfilename.c_str(), "a");
+        if (utilFile == NULL) {
+            fprintf(stderr, "ERROR: Unable to open index file ** %s\n",
+                    utilfilename);
+            exit(1);
+        }
+        fprintf(utilFile, "weight,%d,%d,%d\n",DLALayerNum,myfault,weight_indices[DLALayerNum].size());
+        fclose(utilFile);
         myfault = 0;
         DLALayerNum++;   
     }
@@ -180,6 +205,16 @@ extern "C" {
                                 int8_t* input1ShapePtr, int64_t input2ShapeRank,
                                 int8_t* input2ShapePtr) {
         // fprintf(stderr,"num faults in layer %d: %d \n",DLALayerNum,myfault);
+        FILE *utilFile;
+        std::string utilfilename = "./FIutil/DLAFI.indices."+std::to_string(FIMACX)+"."+std::to_string(FIMACY)+".txt";
+        utilFile = fopen(utilfilename.c_str(), "a");
+        if (utilFile == NULL) {
+            fprintf(stderr, "ERROR: Unable to open index file ** %s\n",
+                    utilfilename);
+            exit(1);
+        }
+        fprintf(utilFile, "weight,%d,%d,%d\n",DLALayerNum,myfault,weight_indices[DLALayerNum].size());
+        fclose(utilFile);
         myfault = 0;
         DLALayerNum++;
     }
@@ -191,54 +226,148 @@ extern "C" {
 
 
 
+    void locate_indices(int layerNum, int DIM, std::vector<int>& X, std::vector<int>& Y, std::vector<int>& D, std::vector<int>& Mult, std::vector<int>& ind){
+        int mul = 1;
+        int real_ind = 0;
+        // fprintf(stderr,"( ");
+        for(int id = 0 ; id < D.size(); id++){
+            real_ind += ind[id] * Mult[id];
 
+            // fprintf(stderr,"%d (%d), ",ind[id],Mult[id]);
+        }
+
+        // fprintf(stderr," ) ");
+        mul = 1;
+        int PE_X = 0;
+        for(int ix = 0 ; ix < X.size(); ix++){
+            PE_X += ind[X[ix]] * mul;
+            if(ix == X.size()-1){
+                int TileX = DIM - DIM % mul;
+                if(TileX == 0)
+                    TileX = DIM;
+                PE_X %= TileX;
+            }
+            mul *= D[X[ix]];
+        }
+
+        mul = 1;
+        int PE_Y = 0;
+        for(int iy = 0 ; iy < Y.size(); iy++){
+            PE_Y += ind[Y[iy]] * mul;
+            if(iy == Y.size()-1){
+                int TileY = DIM - DIM % mul;
+                if(TileY == 0)
+                    TileY = DIM;
+                PE_Y %= TileY;
+            }
+            mul *= D[Y[iy]];
+        }
+
+        
+        // fprintf(stderr,"INDEX %d = (%d , %d)\n",real_ind, PE_X, PE_Y);
+        if (PE_X%sampler == 0 && PE_Y%sampler == 0){
+            utilization[PE_X/sampler][PE_Y/sampler][layerNum] ++;
+            weight_indices_prof[PE_X/sampler][PE_Y/sampler][layerNum].insert(real_ind);
+        }
+        // else
+        // fprintf(stderr,"INDEX %d = (%d , %d) sampler = %d\n",real_ind, PE_X, PE_Y, sampler);
+        
+    }
+
+    void looper(int L, int layerNum, int DIM, std::vector<int>& X, std::vector<int>& Y, std::vector<int>& D, std::vector<int>& Mult, std::vector<int>& ind){
+        if(L == D.size()){
+            locate_indices(layerNum, DIM, X, Y, D, Mult, ind);
+        }
+        else{
+            for(int i = 0 ; i < D[L]; i++){
+                ind[L] = i;
+                looper(L+1, layerNum, DIM, X, Y, D, Mult, ind);
+            }
+        }
+    }
     //profiling pass functions:
 
-     void locate_weight_indices(int layerNum, int MAC_x, int MAC_y, int Dim, int C,int H,int W, int M){
+     void locate_weight_indices(int layerNum, int Dim, int C,int H,int W, int M){
 
         // fprintf(stderr,"locate_weight indices layerNum= %d MAC_x= %d MAC_y= %d Dim= %d C= %d H= %d W= %d M= %d\n",layerNum,MAC_x,MAC_y,Dim,C,H,W,M);
         // fprintf(stderr,"W\tH\tC\tM\tindex\n");
         // fprintf(stderr,"-----------------------------\n");
-
-        for(int i = 0 ; i < M; i++){
-            if(i%Dim != MAC_x)
-                continue;
-            for(int j=0;j<C;j++){
-                for(int h1=0;h1<H;h1++){
-                    if((j*H+h1)%(Dim-Dim%H) != MAC_y)
-                        continue;
-                    for(int w1=0;w1<W;w1++){
-                        int ind = w1+ h1*W+ j*W*H+ i*W*H*C;
-                        weight_indices_prof[MAC_x/sampler][MAC_y/sampler][layerNum].insert(ind);
-                        // fprintf(stderr,"%d\t%d\t%d\t%d\t%d(%ld) \t %d\n",w1,h1,j,i,ind,weight_indices_prof[MAC_x][MAC_y][layerNum].size(),(h1*C+j));
-                    }   
-                }
+        std::vector<int> X = {3}; // M
+        std::vector<int> Y = {2}; // C
+        // std::vector<int> Y = {1,2}; // W C
+        // std::vector<int> Y = {0, 1,2}; //H W C
+        if(Dim>=C*2)
+            Y = {1,2}; // W,C
+        std::vector<int> D = {H, W, C, M}; // Update W, H, C, M as needed before calling
+        std::vector<int> Mult(D.size(),1);
+        std::vector<int> ind(D.size(), 0);
+        int mul = 1;
+        for( int i = 1 ; i < D.size(); i++){
+            Mult[i] = D[i-1] * Mult[i-1];
+        }
+        looper(0,layerNum,Dim,X,Y,D,Mult,ind);
+        int total_weight = 0;
+        for( int i = 0 ; i < Dim/sampler;i++){
+            for(int j = 0 ; j < Dim/sampler; j++){
+                total_weight += utilization[i][j][layerNum];
             }
         }
+        // for(int i = 0 ; i < M; i++){
+        //     if(i%Dim != MAC_x)
+        //         continue;
+        //     for(int j=0;j<C;j++){
+        //         for(int h1=0;h1<H;h1++){
+        //             if((j*H+h1)%(Dim-Dim%H) != MAC_y)
+        //                 continue;
+        //             for(int w1=0;w1<W;w1++){
+        //                 int ind = w1+ h1*W+ j*W*H+ i*W*H*C;
+        //                 weight_indices_prof[MAC_x/sampler][MAC_y/sampler][layerNum].insert(ind);
+        //                 // fprintf(stderr,"%d\t%d\t%d\t%d\t%d(%ld) \t %d\n",w1,h1,j,i,ind,weight_indices_prof[MAC_x][MAC_y][layerNum].size(),(h1*C+j));
+        //             }   
+        //         }
+        //     }
+        // }
+
+        // fprintf(stderr,"EXIT(0) %d\n",total_weight);
+        // exit(0);
 
     }
-    void locate_Matmulweight_indices(int layerNum, int MAC_x, int MAC_y, int Dim, int N, int M){
-        
+    
+    void locate_Matmulweight_indices(int layerNum,  int Dim, int N, int M){
+        std::vector<int> X = {1};
+        std::vector<int> Y = {0};
+        std::vector<int> D = {M, N};
+
+        std::vector<int> Mult(D.size(), 1);
+        std::vector<int> ind(D.size(), 0);
+
+        for (int i = 1; i < D.size(); i++) {
+            Mult[i] = Mult[i-1] * D[i-1];
+        }
+        looper(0,layerNum,Dim,X,Y,D,Mult,ind);
+
         // fprintf(stderr,"locate_Matmulweight indices layerNum= %d MAC_x= %d MAC_y= %d Dim= %d N= %d M= %d\n",layerNum,MAC_x,MAC_y,Dim,N,M);
         // fprintf(stderr,"N\tM\tindex\n");
         // fprintf(stderr,"-----------------------------\n");
         
-        for(int i = 0 ; i < N; i++){
-            if(i%Dim != MAC_y)
-                continue;
-            for(int j=0;j<M;j++){
-                if(j%Dim != MAC_x)
-                    continue;
-                int ind = j+i*M; 
-                weight_indices_prof[MAC_x/sampler][MAC_y/sampler][layerNum].insert(ind);
-                // fprintf(stderr,"%d\t%d\t%d(%ld)\n",i,j,ind,weight_indices_prof[MAC_x][MAC_y][layerNum].size());
+        // for(int i = 0 ; i < N; i++){
+        //     if(i%Dim != MAC_y)
+        //         continue;
+        //     for(int j=0;j<M;j++){
+        //         if(j%Dim != MAC_x)
+        //             continue;
+        //         int ind = j+i*M; 
+        //         weight_indices_prof[MAC_x/sampler][MAC_y/sampler][layerNum].insert(ind);
+        //         // fprintf(stderr,"%d\t%d\t%d(%ld)\n",i,j,ind,weight_indices_prof[MAC_x][MAC_y][layerNum].size());
 
             
-            }
-        }
+        //     }
+        // }
 
+        // fprintf(stderr,"EXIT(0)\n");
+        // exit(0);
     }
-
+    
     void LLTFIInjectFaultProf(char* operatorConfig, int8_t* outputPtr,
                         int64_t outputRank, int8_t* outputShape,
                         int8_t* outputStrides, int64_t inputShapeRank,
@@ -284,12 +413,8 @@ extern "C" {
         read_SA_config();
         fprintf(stderr,"here?\n");
         if(isDataflowWS){
-            for(int i = 0; i < SAdim; i++){
-                for(int j = 0; j < SAdim; j++){
-                    if(i % sampler == 0  &&  j % sampler == 0)
-                    locate_weight_indices(DLALayerNum,i,j,SAdim,op->kernelSize[1],op->kernelSize[2],op->kernelSize[3],op->kernelSize[0]);
-                }
-            }
+            
+            locate_weight_indices(DLALayerNum,SAdim,op->kernelSize[1],op->kernelSize[2],op->kernelSize[3],op->kernelSize[0]);
         }
         
         fprintf(stderr,"here now?\n");
@@ -337,12 +462,7 @@ extern "C" {
         
         read_SA_config();
         if(isDataflowWS){
-            for(int i = 0; i < SAdim; i++){
-                for(int j = 0; j < SAdim; j++){
-                    if(i % sampler == 0  &&  j % sampler == 0)
-                        locate_Matmulweight_indices(DLALayerNum,i,j,SAdim,op->input2ShapePtr[0],op->input2ShapePtr[1]);
-                }
-            }
+            locate_Matmulweight_indices(DLALayerNum,SAdim,op->input2ShapePtr[0],op->input2ShapePtr[1]);
         }
         DLALayerNum++;
     }
@@ -356,6 +476,7 @@ void DLAPrintIndices(){
             for(int MAC_y = 0; MAC_y < SAdim/sampler; MAC_y++){
                 FILE *indexFile;
                 std::string indexfilename = "./FIlocations/SAFI.indices."+std::to_string(MAC_x)+"."+std::to_string(MAC_y)+".txt";
+                // std::string utilfilename = "./FIutil/DLAFI.indices."+std::to_string(MAC_x)+"."+std::to_string(MAC_y)+".txt";
                 // fprintf(stderr,"writing into file %s \n",indexfilename.c_str());
                 indexFile = fopen(indexfilename.c_str(), "w");
                 if (indexFile == NULL) {
@@ -385,6 +506,22 @@ void DLAPrintIndices(){
                 }
 
                 fclose(indexFile);
+
+
+                // utilFile = fopen(utilfilename.c_str(), "w");
+                // if (utilFile == NULL) {
+                //     fprintf(stderr, "ERROR: Unable to open index file ** %s\n",
+                //             utilfilename);
+                //     exit(1);
+                // }
+                // fprintf(utilFile, "# do not edit %d\n",SETSIZE);
+                // for( int i = 0; i < SETSIZE; i++){
+                //     fprintf(utilFile, "util,%d,%d\n",i,utilization[MAC_x][MAC_y][i]);
+                //     fprintf(utilFile, "weight,%d,%d\n",i,utilization[MAC_x][MAC_y][i]);
+                    
+                // }
+
+                // fclose(utilFile);
             }
         }
     }
