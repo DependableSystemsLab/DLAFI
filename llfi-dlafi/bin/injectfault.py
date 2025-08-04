@@ -708,10 +708,10 @@ def main(args):
         # Print updates, print the number of injections finished
         print_progressbar(index+1, run_number)
         Mac_x += 1
-        if(Mac_x == SADim/int(dOpt["Sampler"])):
+        if(Mac_x >= SADim/int(dOpt["Sampler"])):
           Mac_x = 0
           Mac_y += 1
-        if(Mac_y == SADim/int(dOpt["Sampler"])):
+        if(Mac_y >= SADim/int(dOpt["Sampler"])):
           Mac_y = 0
           break
           # fi_bit += 1
