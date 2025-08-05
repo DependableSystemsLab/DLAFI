@@ -86,7 +86,7 @@ def checkInputYaml():
 
   #Check for input.yaml's correct formmating
   try:
-    doc = yaml.safe_load(f)
+    doc = yaml.load(f, Loader=yaml.SafeLoader)
   except:
     f.close()
     usage("input.yaml is not formatted in proper YAML (reminder: use spaces, not tabs3)")

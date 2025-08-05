@@ -132,3 +132,19 @@ void injectFaultPattern(TensorOperator*);
 
 // Function to parse LLFI's config file.
 void ParseLLFIConfigFile();
+
+
+
+
+struct Strategy {
+    std::vector<std::array<int, 3>> conditions;
+    std::vector<int> X;
+    std::vector<int> Y;
+    std::vector<int> DivisibleTiles;
+};
+
+struct Mapping {
+    std::vector<Strategy> strategies;
+};
+
+static std::vector<Mapping> SA_mapping_conv, SA_mapping_matmul;

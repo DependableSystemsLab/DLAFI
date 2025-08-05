@@ -152,6 +152,8 @@ def checkInputYaml():
   #Check for input.yaml's presence
   global cOpt
   global dOpt
+  global SA_mappings 
+
   srcpath = os.path.dirname(options["source"])
   try:
     f = open(os.path.join(srcpath, 'input.yaml'), 'r')
@@ -184,6 +186,12 @@ def checkInputYaml():
   except:
     dOpt = None
 
+  #check for SA_mappings in input.yaml
+  try:
+    SA_mappings = doc["SA_mappings"]
+  except:
+    SA_mappings = None
+
 
 ################################################################################
 def execCompilation(execlist):
@@ -197,6 +205,7 @@ def readCompileOption():
   global compileOptions
   global dOpt
   global isDeviceCPU
+  global SA_mappings
 
   fiSAconfig_File = open("llfi.SA.config.txt", 'w')
   fiSAconfig_File.write("deviceType="+str(dOpt["deviceType"]+'\n'))
@@ -221,6 +230,38 @@ def readCompileOption():
         fiSAlocation_File = open("./FIlocations/SAFI.indices."+str(i)+"."+str(j)+".txt", 'w')
         fiSAlocation_File.close()
         counter += 1
+
+
+  fiSAconfig_File.write(f'num_mappings= {len(SA_mappings)}\n')
+  for mapping in SA_mappings:
+      if "conv" in mapping["kernel_type"]:
+          fiSAconfig_File.write(f'kernel_type= conv\n')
+      else:
+          fiSAconfig_File.write(f'kernel_type= matmul\n')
+      fiSAconfig_File.write(f'num_strategies= {mapping["num_strategies"]}\n')
+
+      for strategy in mapping['strategies']:
+          fiSAconfig_File.write(f'num_conditions= {len(strategy["condition"])}\n')
+          for cond in strategy["condition"]:
+              op = 2
+              if cond[1] == "eq":
+                  op = 0
+              elif cond[1] == "geq":
+                  op = 1
+              elif cond[1] == "leq":
+                  op = -1
+              fiSAconfig_File.write(f'condition= {cond[0]} {op} {cond[2]}\n')
+
+
+          fiSAconfig_File.write(f'len_x= {len(strategy["X"])}\n')
+          fiSAconfig_File.write(' '.join(map(str, strategy["X"])) + '\n')
+
+          fiSAconfig_File.write(f'len_y= {len(strategy["Y"])}\n')
+          fiSAconfig_File.write(' '.join(map(str, strategy["Y"])) + '\n')
+
+          Divisible_tiles = strategy.get("Divisible_tiles", [])
+          fiSAconfig_File.write(f'len_divisible_tiles= {len(Divisible_tiles)}\n')
+          fiSAconfig_File.write(' '.join(map(str, Divisible_tiles)) + '\n')
 
   fiSAconfig_File.close()
   ###Instruction selection method
