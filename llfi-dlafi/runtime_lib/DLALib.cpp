@@ -581,8 +581,10 @@ extern "C" {
                         }
                         
                     }
-                    // if (!satisfied) continue; // Skip if conditions are not satisfied
-                    
+                    if (!satisfied) continue; // Skip if conditions are not satisfied
+                    X.clear();
+                    Y.clear();
+                    DivisibleTiles.clear();
                     for (int x : strategy.X) 
                         X.push_back(x);
                     for (int y : strategy.Y)

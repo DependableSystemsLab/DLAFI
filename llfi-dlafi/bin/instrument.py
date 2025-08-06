@@ -152,7 +152,6 @@ def checkInputYaml():
   #Check for input.yaml's presence
   global cOpt
   global dOpt
-  global SA_mappings 
 
   srcpath = os.path.dirname(options["source"])
   try:
@@ -185,6 +184,31 @@ def checkInputYaml():
     dOpt = doc["deviceOption"]
   except:
     dOpt = None
+    print("ERROR: Please include deviceOption in input.yaml.")
+    exit(1)
+  
+def checkSAInputYaml():
+  global dOpt
+  global SA_mappings 
+
+  srcpath = os.path.dirname(options["source"])
+  try:
+    f = open(os.path.join(srcpath, 'SAinput.yaml'), 'r')
+  except:
+    print("ERROR: No SAinput.yaml file in the %s directory." % srcpath)
+    os.rmdir(options["dir"])
+    exit(1)
+
+  #Check for SAinput.yaml's correct formmating
+  try:
+    doc = yaml.safe_load(f)
+    f.close()
+    verbosePrint(yaml.dump(doc), options["verbose"])
+  except:
+    print("Error: SAinput.yaml is not formatted in proper YAML (reminder: use spaces, not tabs1)")
+    os.rmdir(options["dir"])
+    exit(1)
+
 
   #check for SA_mappings in input.yaml
   try:
@@ -241,16 +265,19 @@ def readCompileOption():
       fiSAconfig_File.write(f'num_strategies= {mapping["num_strategies"]}\n')
 
       for strategy in mapping['strategies']:
-          fiSAconfig_File.write(f'num_conditions= {len(strategy["condition"])}\n')
-          for cond in strategy["condition"]:
-              op = 2
-              if cond[1] == "eq":
-                  op = 0
-              elif cond[1] == "geq":
-                  op = 1
-              elif cond[1] == "leq":
-                  op = -1
-              fiSAconfig_File.write(f'condition= {cond[0]} {op} {cond[2]}\n')
+          if strategy["condition"] == None:
+              fiSAconfig_File.write(f'num_conditions= 0\n')
+          else:
+            fiSAconfig_File.write(f'num_conditions= {len(strategy["condition"])}\n')
+            for cond in strategy["condition"]:
+                op = 2 # default
+                if cond[1] == "eq":
+                    op = 0
+                elif cond[1] == "geq":
+                    op = 1
+                elif cond[1] == "leq":
+                    op = -1
+                fiSAconfig_File.write(f'condition= {cond[0]} {op} {cond[2]}\n')
 
 
           fiSAconfig_File.write(f'len_x= {len(strategy["X"])}\n')
@@ -513,6 +540,7 @@ def compileProg():
 def main(args):
   parseArgs(args)
   checkInputYaml()
+  checkSAInputYaml()
   readCompileOption()
   compileProg()
 

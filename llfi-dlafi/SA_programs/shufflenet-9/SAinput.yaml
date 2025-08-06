@@ -1,0 +1,31 @@
+deviceOption:
+  SystolicArrayDataflow: WS
+  SystolicArrayDimension: 16
+  deviceType: SA
+SA_mappings:
+  - mapping_id: mapping0
+    kernel_type: conv
+    num_strategies: 2
+    strategies:
+      - strategy_id: strategy_0
+        condition:
+          - [0, geq, 17]
+        X: [3]
+        Y: [2]
+        Divisible_tiles: [3, 2]
+      - strategy_id: strategy_1
+        condition:
+          - [2, leq, 16]
+        X: [3]
+        Y: [1, 2]
+        Divisible_tiles: [3, 2]
+  - mapping_id: mapping1
+    kernel_type: matmul
+    num_strategies: 1
+    strategies:
+      - strategy_id: strategy_0
+        condition:
+          - [-1, default, -1]
+        X: [1]
+        Y: [0]
+        Divisible_tiles: [0,1]
