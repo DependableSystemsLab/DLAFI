@@ -1,0 +1,2 @@
+#define OUT_CHANNELS 18
+#define KERNEL_DIM 3
