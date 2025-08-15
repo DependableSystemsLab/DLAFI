@@ -114,10 +114,18 @@ class PE[T <: Data](inputType: T, outputType: T, accType: T, df: Dataflow.Value,
                                   fi_pe_row, fi_pe_col, fault_model, fault_data)
   }
 
+
+  val weight = Wire(inputType)
+  when (prop === PROPAGATE) {
+    weight := c2.asTypeOf(inputType)
+  } .otherwise {
+    weight := c1.asTypeOf(inputType)
+  }
+
   val inject_here = do_fi === 1.U &&
-                  tile_row === fi_tile_row && tile_col === fi_tile_col &&
-                  pe_row === fi_pe_row && pe_col === fi_pe_col &&
-                  a.isNonZero(a) && b.isNonZero(b)
+                    tile_row === fi_tile_row && tile_col === fi_tile_col &&
+                    pe_row === fi_pe_row && pe_col === fi_pe_col &&
+                    a.isNonZero(a) && weight.isNonZero(weight)
 
   io.bad_dataflow := false.B
   when ((df == Dataflow.OS).B || ((df == Dataflow.BOTH).B && dataflow === OUTPUT_STATIONARY)) {
