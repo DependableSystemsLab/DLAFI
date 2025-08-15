@@ -197,9 +197,9 @@ static acc_scale_t_bits acc_scale_t_to_acc_scale_t_bits(acc_scale_t x) {
 
 #define FI_CONFIG(x) ROCC_INSTRUCTION_RS1_RS2(XCUSTOM_ACC, x, 0, k_FAULT_INJECTION_CMD)
 
-void fi_config(uint64_t tile_row, uint64_t tile_col, uint64_t pe_row, uint64_t pe_col, uint64_t fault_model, uint64_t do_fi, uint64_t fault_data){
+void fi_config(uint64_t tile_row, uint64_t tile_col, uint64_t pe_row, uint64_t pe_col, uint64_t fault_model, uint64_t do_fi, uint64_t fi_bit_loc){
 
-	//assert(tile_row < 1024 && tile_col < 1024 && pe_row < 1024 && pe_col < 1024 && fault_model < 9 && do_fi < 2 && fault_data < 1048576);
+	//assert(tile_row < 1024 && tile_col < 1024 && pe_row < 1024 && pe_col < 1024 && fault_model < 9 && do_fi < 2 && fi_bit_loc < 1048576);
 
 	uint64_t retval = 0;
 	retval = retval | tile_row;
@@ -208,7 +208,7 @@ void fi_config(uint64_t tile_row, uint64_t tile_col, uint64_t pe_row, uint64_t p
 	retval = retval | (pe_col << 30);
 	retval = retval | (do_fi << 40);
 	retval = retval | (fault_model << 41);
-	retval = retval | (fault_data << 44);
+	retval = retval | (fi_bit_loc << 44);
 
 	FI_CONFIG(retval);
 }
