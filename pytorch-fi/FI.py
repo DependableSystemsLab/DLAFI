@@ -61,14 +61,14 @@ def inject_fault(matrix, integer_bits=16, fractional_bits=16):
 
 
 
-def BitFlipFloatingPoint(original_value, bit, integer_bits=16, fractional_bits=16):
+def BitFlipFloatingPoint(original_value, bit):
 
     binary_repr = struct.unpack('>I', struct.pack('>f', original_value.item()))[0]
     flipped_repr = binary_repr ^ (1 << bit)
     new_value = struct.unpack('>f', struct.pack('>I', flipped_repr))[0]
     return new_value
 
-def StuckAtFloatingPoint(original_value, bit, dbit, integer_bits=16, fractional_bits=16):
+def StuckAtFloatingPoint(original_value, bit, dbit):
 
     binary_repr = struct.unpack('>I', struct.pack('>f', original_value.item()))[0]
     flipped_repr = binary_repr | (1 << bit)
@@ -193,17 +193,17 @@ def ColumnFI(matrix, OutC, fault_type="BitFlip", FI_bit=-1, integer_bits=16, fra
                         FI_bit = random.randint(0, 31)
                     if(fault_type == "BitFlip"):
                         if(fault_model == "float"):
-                            new_value = BitFlipFloatingPoint(original_value,FI_bit,integer_bits,fractional_bits)
+                            new_value = BitFlipFloatingPoint(original_value,FI_bit)
                         else:
-                            new_value = BitFlipFloatingPoint(original_value,FI_bit,integer_bits,fractional_bits)
+                            new_value = BitFlipFixedPoint(original_value,FI_bit,integer_bits,fractional_bits)
                     elif(fault_type == "StuckAt0"):
                         if(fault_model == "float"):
-                            new_value = StuckAtFloatingPoint(original_value,FI_bit,0,integer_bits,fractional_bits)
+                            new_value = StuckAtFloatingPoint(original_value,FI_bit,0)
                         else:
                             new_value = StuckAtFixedPoint(original_value,FI_bit,0,integer_bits,fractional_bits)
                     elif(fault_type == "StuckAt1"):
                         if(fault_model == "float"):
-                            new_value = StuckAtFloatingPoint(original_value,FI_bit,1,integer_bits,fractional_bits)
+                            new_value = StuckAtFloatingPoint(original_value,FI_bit,1)
                         else:
                             new_value = StuckAtFixedPoint(original_value,FI_bit,1,integer_bits,fractional_bits)
 

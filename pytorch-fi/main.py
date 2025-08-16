@@ -14,8 +14,8 @@ import random
 import pickle
 import argparse
 
-torch.manual_seed(0)
-
+torch.manual_seed(10000)
+random.seed(10000)
 
 def get_labels(model, inputs):
     correct = 0
@@ -92,7 +92,7 @@ if __name__ == "__main__":
         elif model_name == "shufflenet_v2":
             loaded_models[model_name] = models.shufflenet_v2_x1_0()
         elif model_name == "inceptionnet_v1":
-            loaded_models[model_name] = models.googlenet(pretrained=True).eval()
+            loaded_models[model_name] = models.googlenet()
         else:
             print(f"Unknown model: {model_name}")
             continue
