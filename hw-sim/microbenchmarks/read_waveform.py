@@ -94,6 +94,8 @@ def get_axis(w_x, w_y, target_dim):
                 continue
             diff.add(((x2-x1).item(),(y2-y1).item()))
     return diff
+
+
 def analyze_waveform(diff, dim_array, SAdim=16):
 
     X = []
@@ -108,6 +110,7 @@ def analyze_waveform(diff, dim_array, SAdim=16):
         txd = 0
         tyd = 0
         two_D = None
+        # if (+a, 0) was observed, then unrolling is in the x direction with size xd
         for a,b in axis_diff:
             if a == 0 and b == 0:
                 # no tiling over this dimension
@@ -119,11 +122,14 @@ def analyze_waveform(diff, dim_array, SAdim=16):
             if a > 0 and b > 0:
                 print(f"Unexpected axis difference: {a}, {b} at dimension {d}")
                 exit(1)
+
+        # if (-a, 0) was observed then tiling is the value of |a| + xd
         for a,b in axis_diff:
             if a < 0 and b == 0:
                 txd = -a + xd  
             if a == 0 and b < 0:
                 tyd = -b + yd  
+        # if (-a, +b) was observed then tiling is happening over both axis. the inner tile unrolls over x.
         for a,b in axis_diff:
             if a < 0 and b > 0:
                 two_D = 'x'
@@ -143,6 +149,8 @@ def analyze_waveform(diff, dim_array, SAdim=16):
             d_2unrolls = (d, two_D)
     X = sorted(X, key=lambda f: f[0])
     Y = sorted(Y, key=lambda f: f[0])
+    
+    # we identify which dimensions use divisible tiling.
     if d_2unrolls is not None:
         d, two_d = d_2unrolls
         Div_Tiles = [d]
