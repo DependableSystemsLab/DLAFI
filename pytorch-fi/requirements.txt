@@ -1,0 +1,5 @@
+numpy==1.24.4
+onnx==1.17.0
+torch
+torchvision
+onnx2pytorch
