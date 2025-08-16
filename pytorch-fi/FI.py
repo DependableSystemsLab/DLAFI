@@ -25,7 +25,7 @@ def fixed_to_float(value, integer_bits=16, fractional_bits=16):
     scale_factor = 2 ** fractional_bits
     return value / scale_factor
 
-def inject_fault_fixed_point(matrix, integer_bits=16, fractional_bits=16):
+def inject_fault(matrix, integer_bits=16, fractional_bits=16):
     # Ensure the matrix is not empty
     if not matrix or not matrix[0]:
         return None
@@ -103,7 +103,6 @@ def StuckAtFixedPoint(original_value, bit, dbit, integer_bits=16, fractional_bit
     return new_value
 
 def ChannelFI(matrix, OutC, fault_type="BitFlip", FI_bit=-1, integer_bits=16, fractional_bits=16,fault_model="float"):
-    modified_elements = []
     for i in range(matrix.shape[0]):
         for w in range(matrix.shape[1]):
             if(w%16!=OutC):
@@ -133,17 +132,11 @@ def ChannelFI(matrix, OutC, fault_type="BitFlip", FI_bit=-1, integer_bits=16, fr
                         else:
                             new_value = StuckAtFixedPoint(original_value,FI_bit,1,integer_bits,fractional_bits)
 
-                    dif = abs(new_value - original_value)
-                    modified_elements.append(((i, depth, row, col), original_value, new_value))
-                    # if(dif > 0.01):
-                    #     # print("Dif=",dif,FI_bit ,new_value, original_value)
-                    #     modified_elements.append(((i, depth, row, col), original_value, new_value))
                     matrix[i][depth][row][col] = new_value
-    return matrix, modified_elements
+    return matrix
 
 
-def inject_fault_fixed_point_4d(matrix, pattern="Channel", fault_type="BitFlip", FI_bit=-1, integer_bits=16, fractional_bits=16,fault_model="float",pattern_index=-1):
-
+def inject_fault_4d(matrix, pattern="Channel", fault_type="BitFlip", FI_bit=-1, integer_bits=16, fractional_bits=16,fault_model="float",pattern_index=-1):
     if(pattern == "Single"):
         depth = random.randint(0, matrix.shape[1]-1)
         row = random.randint(0, matrix.shape[2]-1)
@@ -157,7 +150,6 @@ def inject_fault_fixed_point_4d(matrix, pattern="Channel", fault_type="BitFlip",
 
 
 def ColumnFI(matrix, OutC, fault_type="BitFlip", FI_bit=-1, integer_bits=16, fractional_bits=16,fault_model="float"):
-    modified_elements = []
     if len(matrix.shape) == 2:
         for i in range(matrix.shape[0]):
             for j in range(matrix.shape[1]):
@@ -184,14 +176,9 @@ def ColumnFI(matrix, OutC, fault_type="BitFlip", FI_bit=-1, integer_bits=16, fra
                         new_value = StuckAtFloatingPoint(original_value,FI_bit,1,integer_bits,fractional_bits)
                     else:
                         new_value = StuckAtFixedPoint(original_value,FI_bit,1,integer_bits,fractional_bits)
-
-                dif = abs(new_value - original_value)
-                modified_elements.append(((i, 0, col), original_value, new_value))
-                # if(dif > 0.01):
-                #     # print("Dif=",dif,FI_bit ,new_value, original_value)
-                #     modified_elements.append(((i, depth, row, col), original_value, new_value))
+                
                 matrix[i][col] = new_value
-        return matrix, modified_elements    
+        return matrix    
     else:
         for i in range(matrix.shape[0]):
             for k in range(matrix.shape[1]):
@@ -220,47 +207,33 @@ def ColumnFI(matrix, OutC, fault_type="BitFlip", FI_bit=-1, integer_bits=16, fra
                         else:
                             new_value = StuckAtFixedPoint(original_value,FI_bit,1,integer_bits,fractional_bits)
 
-                    dif = abs(new_value - original_value)
-                    modified_elements.append(((i, row, col), original_value, new_value))
-                    # if(dif > 0.01):
-                    #     # print("Dif=",dif,FI_bit ,new_value, original_value)
-                    #     modified_elements.append(((i, depth, row, col), original_value, new_value))
                     matrix[i][row][col] = new_value
-        return matrix, modified_elements
+        return matrix
         
 
-def inject_fault_fixed_point_2d(matrix, pattern="Column", fault_type="BitFlip", FI_bit=-1, integer_bits=16, fractional_bits=16,fault_model="float",pattern_index=-1):
-
-    if(pattern == "Column"):
-        depth = random.randint(0, matrix.shape[1]-1)
-        if(pattern_index!= -1):
-            depth = pattern_index
-        return ColumnFI(matrix, depth, fault_type=fault_type, FI_bit=FI_bit, integer_bits=integer_bits, fractional_bits=fractional_bits,fault_model=fault_model)
+def inject_fault_2d(matrix, fault_type="BitFlip", FI_bit=-1, integer_bits=16, fractional_bits=16,fault_model="float",pattern_index=-1):
+    depth = random.randint(0, matrix.shape[1]-1)
+    if(pattern_index!= -1):
+        depth = pattern_index
+    return ColumnFI(matrix, depth, fault_type=fault_type, FI_bit=FI_bit, integer_bits=integer_bits, fractional_bits=fractional_bits,fault_model=fault_model)
 
 
+# modelFI = FI.Analysis(hook_FI_model,fi_type,fibit,sa_x)
 
-def Analysis(model, layerNum,maxvalues, dataloader,device,fault_type="StuckAt0", FI_bit=30,pattern_index=0):
+def Analysis(model,fault_type="StuckAt0", FI_bit=30,pattern_index=0):
     # print(maxvalues.keys())
     def fault_injection_hook(module, input, output):
             with torch.no_grad():
-                output, modified_elements = inject_fault_fixed_point_4d(output, pattern="Channel", fault_type=fault_type, FI_bit=FI_bit,fault_model="float",pattern_index=pattern_index)
-                # print("modified elements",len(modified_elements))
+                output = inject_fault_4d(output, fault_type=fault_type, FI_bit=FI_bit, fault_model="float",pattern_index=pattern_index)
     def fault_injection_hook_2d(module, input, output):
             with torch.no_grad():
-                output, modified_elements = inject_fault_fixed_point_2d(output, pattern="Column", fault_type=fault_type, FI_bit=FI_bit,fault_model="float",pattern_index=pattern_index)
-                # print("modified elements",len(modified_elements))
+                output = inject_fault_2d(output, fault_type=fault_type, FI_bit=FI_bit, fault_model="float",pattern_index=pattern_index)
 
     cnt = 0
     for name, layer in model.named_modules():
         if isinstance(layer, nn.Conv2d):
-            # print(maxvalues[str(layer)])
             layer.register_forward_hook(fault_injection_hook)
         if isinstance(layer, nn.Linear):
-            # print(maxvalues[str(layer)])
             layer.register_forward_hook(fault_injection_hook_2d)
     return model
-    # accuracy = train.test_accuracy(model, dataloader, device)
-    # print("Fault injection on the convolutional layers. Acc=",accuracy)
-    # return 0
-    
     

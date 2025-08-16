@@ -1,94 +1,130 @@
-import os
+import onnx
 import torch
+import numpy as np
+import onnx
+from onnx2pytorch import ConvertModel
 import torchvision
-import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
-from torchvision.models import resnet18
+from  torchvision import transforms, models
+import os
 import torch.nn as nn
-import torch.optim as optim
-import plot
-import rangeRestriction
-import FI
+import torchvision.transforms.functional as F
 import copy
-import train
+import FI
+import random
+import pickle
+import argparse
 
-model_path = './checkpoint/cifar_resnet18.pth'
+torch.manual_seed(0)
 
 
-# Define a transform to normalize the data
-transform = transforms.Compose(
-    [transforms.ToTensor(),
-     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+def get_labels(model, inputs):
+    correct = 0
+    total = 0
+    cnt = 0
+    model.eval()  # Set the model to evaluation mode
+    labels = []
+    for image in inputs:
+        # print("input ",image.shape)
+        outputs = model(image)
+        _, predicted = torch.max(outputs.data, 1)
+        labels.append(predicted.item())
+        # print(predicted.item())
+        cnt += 1
 
-# Load CIFAR-10 training and test sets
-trainset = torchvision.datasets.CIFAR10(root='./dataset', train=True,
-                                        download=True, transform=transform)
-trainloader = DataLoader(trainset, batch_size=16,
-                         shuffle=True, num_workers=2)
+    return labels
 
-testset = torchvision.datasets.CIFAR10(root='./dataset', train=False,
-                                       download=True, transform=transform)
-testloader = DataLoader(testset, batch_size=4,
-                        shuffle=False, num_workers=2)
+def load_pb_to_pytorch(pb_file):
+    # Load the serialized ONNX tensor from the .pb file
 
-# Class labels in CIFAR-10
-classes = ('plane', 'car', 'bird', 'cat',
-           'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+    transform = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
 
-# Load a pre-trained ResNet model
-model = resnet18(pretrained=True)
+    tensor_proto = onnx.TensorProto()
+    with open(pb_file, 'rb') as f:
+        tensor_proto.ParseFromString(f.read())
+    
+    # Convert the ONNX tensor to a NumPy array
+    array = onnx.numpy_helper.to_array(tensor_proto)
+    
+    # Convert the NumPy array to a PyTorch tensor
+    torch_tensor = torch.from_numpy(array)
+    
+    input_tensor = F.resize(torch_tensor, size=256)  # Resize to 256x256
 
-# Adjust the model for CIFAR-10's 10 classes
-model.fc = nn.Linear(model.fc.in_features, 10)
+    # Center crop the tensor
+    input_tensor = F.center_crop(input_tensor, output_size=224)  # Crop to 224x224
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-model.to(device)
+    # Normalize the tensor (if not already done before this function)
+    input_tensor = F.normalize(input_tensor, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
-# Define a Loss function and optimizer
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
 
-if os.path.exists(model_path):
-    model.load_state_dict(torch.load(model_path))
-    model.to(device)
-    print("Loaded the trained model from disk.")
-else:
+    return input_tensor
 
-    # Train the model
-    for epoch in range(2):  # loop over the dataset multiple times
 
-        running_loss = 0.0
-        for i, data in enumerate(trainloader, 0):
-            # get the inputs; data is a list of [inputs, labels]
-            inputs, labels = data[0].to(device), data[1].to(device)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Run FI analysis on selected models and images.")
+    parser.add_argument('--models', nargs='+', default=["resnet50", "resnet18", "alexnet", "shufflenet_v2", "inceptionnet_v1"],
+                        help='List of model names to run (default: all)')
+    parser.add_argument('--num-images', type=int, default=10,
+                        help='Number of input images to use (default: 10)')
+    parser.add_argument('--num-iters', type=int, default=100,
+                        help='Number of iterations for FI (default: 10)')
+    parser.add_argument('--sa-dim', type=int, default=16,
+                        help='Systolic array dimension (default: 16 for a 16x16 array)')
 
-            # zero the parameter gradients
-            optimizer.zero_grad()
 
-            # forward + backward + optimize
-            outputs = model(inputs)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
+    args = parser.parse_args()
 
-            running_loss += loss.item()
-            if i%100==0:    # print every 2000 mini-batches
-                print('[%d, %5d] loss: %.3f' %
-                    (epoch + 1, i + 1, running_loss / 2000))
-                running_loss = 0.0
-            
-                torch.save(model.state_dict(), model_path)
+    dataset = []
+    loaded_models = {}
+    for model_name in args.models:
+        print(f"+++++++++++++++++++++++Loading model: {model_name}")
+        if model_name == "resnet50":
+            loaded_models[model_name] = models.resnet50()
+        elif model_name == "resnet18":
+            loaded_models[model_name] = models.resnet18()
+        elif model_name == "alexnet":
+            loaded_models[model_name] = models.alexnet()
+        elif model_name == "shufflenet_v2":
+            loaded_models[model_name] = models.shufflenet_v2_x1_0()
+        elif model_name == "inceptionnet_v1":
+            loaded_models[model_name] = models.googlenet(pretrained=True).eval()
+        else:
+            print(f"Unknown model: {model_name}")
+            continue
+        loaded_models[model_name].load_state_dict(torch.load(f"./models/{model_name}.pth"))
+        loaded_models[model_name].eval()
 
-    print('Finished Training')
+    for i in range(args.num_images):
+        pb_file_path = f'./imagenet_samples/input_{i}.pb'
+        torch_tensor = load_pb_to_pytorch(pb_file_path)
+        dataset.append(torch_tensor)
 
-accuracy = train.test_accuracy(model, testloader, device)
-print(f'Accuracy of the network on the 10000 test images: {accuracy:.2f}%')
 
-hook_model = copy.deepcopy(model)
-max_values = rangeRestriction.get_range(hook_model, testloader,device)
-print(len(max_values))
-# plot.plot_max_values_2d(max_values)
-
-hook_FI_model = copy.deepcopy(model)
-analysis_values = FI.Analysis(hook_FI_model,-1,max_values, testloader,device)
-print(f"analysis_values: {analysis_values}")
+    sa_dim = args.sa_dim
+    num_iters = args.num_iters
+    for model_name in loaded_models.keys():
+        print(model_name)     
+        pytorch_model = loaded_models[model_name]
+        true_labels = get_labels(pytorch_model,dataset)
+        hook_FI_model = copy.deepcopy(pytorch_model)
+        sdc_total = 0
+        for ft in range(2):
+            for it in range(num_iters):
+                sa_x = random.randint(0, sa_dim - 1)
+                sa_y = random.randint(0, sa_dim - 1)
+                fi_bit = random.randint(0, 31)
+                fi_type = f"StuckAt{ft}"
+                modelFI = FI.Analysis(hook_FI_model, fi_type,fi_bit,sa_x)
+                labels = get_labels(modelFI,dataset)
+                sdc = sum(1 for i in range(len(labels)) if labels[i] != true_labels[i]) / len(labels)
+                print(f"Iteration {it+1}/{num_iters} for {model_name} with FI type {fi_type}, FI bit {fi_bit}, SA position ({sa_x}, {sa_y}): SDC = {sdc:.4f}")
+                sdc_total += sdc
+        sdc_avg = sdc_total / (num_iters * 2)
+        print(f"Average SDC for {model_name} : {sdc_avg:.4f}")
+    
+    
