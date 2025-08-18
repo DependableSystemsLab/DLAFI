@@ -32,17 +32,14 @@ def run_and_parse_waveform(
     except FileNotFoundError:
         pass
     print(f"Generated header for {benchmark_name} with defines: {header_defines}")
-    # copy_build_and_run_gemmini_benchmark(
-    #     chipyard_dir,
-    #     benchmark_name=benchmark_name,
-    #     to_build=to_build,
-    #     to_run=to_run,
-    # )
+    copy_build_and_run_gemmini_benchmark(
+        chipyard_dir,
+        benchmark_name=benchmark_name,
+        to_build=to_build,
+        to_run=to_run,
+    )
     values = parse_vcd_weight(chipyard_dir, SA_dim)
-    print("values:", values)
     wx, wy, indices = convert_flat_to_multidim(dim_size, values, SA_dim)
-    print("wx:", wx)
-    print("wy:", wy)
     X, Y, Div_Tiles, d_2unrolls = analyze_waveform(wx, wy, indices, dim_size, SA_dim)
     if d_2unrolls is None:
         d_2unrolls = (-1, None)  # Explicit sentinel for “no 2D unroll”
@@ -63,11 +60,11 @@ def test_matmul_params(dim_size: List[int], args) -> Tuple[List[int], List[int],
 
 def test_conv_params(dim_size: List[int], args) -> Tuple[List[int], List[int], List[int], Tuple[int, Any]]:
     """
-    dim_size: [KERNEL_DIM, OUT_CHANNELS, IN_CHANNELS]  == [Kc, Kv, Kv] as you used
+    dim_size: [KERNEL_DIM, IN_CHANNELS, OUT_CHANNELS]  == [Kc, Kv, Kv] as you used
     """
     assert len(dim_size) == 3
     Kc, OC, IC = dim_size
-    header = [f"KERNEL_DIM {Kc}", f"OUT_CHANNELS {OC}", f"IN_CHANNELS {IC}"]
+    header = [f"KERNEL_DIM {Kc}", f"IN_CHANNELS {OC}", f"OUT_CHANNELS {IC}"]
     modified_dim_size = [dim_size[0], dim_size[0], dim_size[1], dim_size[2]]  # Use only Kc and Kv for the benchmark
     return run_and_parse_waveform(modified_dim_size, header, "DLAFI_Conv", args.chipyard_dir, args.SA_dim, args.to_build, args.to_run)
 
@@ -269,7 +266,6 @@ def find_all_mappings_conv(Kv: int, Kc: int, Vmin_c: int, Vmax_c: int, Vmin: int
     """
     dim_base = [Kc, Kv, Kv]
     mapping_base = test_conv_params(dim_base, args)
-    exit()
     strategies = []
     sid = 0
 
@@ -306,16 +302,15 @@ def find_all_mappings_conv(Kv: int, Kc: int, Vmin_c: int, Vmax_c: int, Vmin: int
             })
             sid += 1
 
-    # Two variable dims: OC (index 1), IC (index 2)
-    for i in (1, 2):
-        dim_max = [Kc, Kv, Kv]
-        dim_max[i] = Vmax
-        mapping_max = test_conv_params(dim_max, args)
-
+    # Two variable dims: IC (index 1), OC (index 2)
+    for i in (1, 3):
         dim_min = [Kc, Kv, Kv]
         dim_min[i] = Vmin
         mapping_min = test_conv_params(dim_min, args)
 
+        dim_max = [Kc, Kv, Kv]
+        dim_max[i] = Vmax
+        mapping_max = test_conv_params(dim_max, args)
         if not is_similar_mapping(mapping_max, mapping_min, i):
             l, r = Vmin, Vmax
             while l < r:
@@ -392,17 +387,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Generate YAML mapping configurations for SA kernels")
 
     # Problem sizes / sweep ranges
-    p.add_argument("--Kv", type=int, default=10, required=False,
+    p.add_argument("--Kv", type=int, default=8, required=False,
                    help="Base variable dim value (e.g., out/in channels for conv; K or J for matmul)")
-    p.add_argument("--Kc", type=int, default=5, required=False,
+    p.add_argument("--Kc", type=int, default=4, required=False,
                    help="Base kernel dim (e.g., KERNEL_DIM)")
     p.add_argument("--Vmin", type=int, default=3, required=False,
                    help="Minimum value for variable dims")
-    p.add_argument("--Vmax", type=int, default=40, required=False,
+    p.add_argument("--Vmax", type=int, default=20, required=False,
                    help="Maximum value for variable dims")
     p.add_argument("--Vmin_c", type=int, default=3, required=False,
                    help="Minimum value for controlled (kernel) dim")
-    p.add_argument("--Vmax_c", type=int, default=10, required=False,
+    p.add_argument("--Vmax_c", type=int, default=8, required=False,
                    help="Maximum value for controlled (kernel) dim")
 
     # Build/run/system
