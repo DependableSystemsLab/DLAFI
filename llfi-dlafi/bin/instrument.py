@@ -151,7 +151,6 @@ def parseArgs(args):
 def checkInputYaml():
   #Check for input.yaml's presence
   global cOpt
-  global dOpt
 
   srcpath = os.path.dirname(options["source"])
   try:
@@ -179,13 +178,7 @@ def checkInputYaml():
     print("ERROR: Please include compileOptions in input.yaml.")
     exit(1)
   
-  #check for deviceOption in input.yaml
-  try:
-    dOpt = doc["deviceOption"]
-  except:
-    dOpt = None
-    print("ERROR: Please include deviceOption in input.yaml.")
-    exit(1)
+
   
 def checkSAInputYaml():
   global dOpt
@@ -209,6 +202,13 @@ def checkSAInputYaml():
     os.rmdir(options["dir"])
     exit(1)
 
+  #check for deviceOption in input.yaml
+  try:
+    dOpt = doc["deviceOption"]
+  except:
+    dOpt = None
+    print("ERROR: Please include deviceOption in input.yaml.")
+    exit(1)
 
   #check for SA_mappings in input.yaml
   try:
