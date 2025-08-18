@@ -63,7 +63,6 @@ def convert_flat_to_multidim(dim_array, values, SAdim=16):
         max_value *= i
     w_x = -np.ones(dim_array)
     w_y = -np.ones(dim_array)
-    tester = []
     for j in range(SAdim):
         for i in range(SAdim):
             for x in values[i][j]:
@@ -77,12 +76,6 @@ def convert_flat_to_multidim(dim_array, values, SAdim=16):
                 indices.append(index)
                 w_x[tuple(index)] = i
                 w_y[tuple(index)] = j
-                if(x < 110):
-                    tester.append((x, index, i, j))
-    tester.sort(key=lambda f: f[0])
-    print("Test values (sorted):")
-    for x, index, i, j in tester:
-        print(f"{x}  {index}, Mesh: ({i}, {j})")
     return w_x, w_y, indices
 
 def get_axis(w_x, w_y, indices, target_dim, SAdim=16):
