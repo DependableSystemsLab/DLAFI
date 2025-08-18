@@ -1,6 +1,7 @@
 
 import re
 import sys
+import numpy as np
 
 def parse_vcd_weight(chipyard_dir, dim=16):
     """
@@ -54,34 +55,41 @@ def print_weight_values(values):
         for y in range(dim):
             print(f"mesh_{x}_{y} weight values: {values[x][y]}")
 
-def convert_flat_to_multidim(values, SAdim=16):
-
+def convert_flat_to_multidim(dim_array, values, SAdim=16):
+    print(dim_array)
+    indices = []
     max_value  = 1
     for i in dim_array:
         max_value *= i
     w_x = -np.ones(dim_array)
     w_y = -np.ones(dim_array)
+    tester = []
     for j in range(SAdim):
         for i in range(SAdim):
             for x in values[i][j]:
-                if x > max_value:
+                if x > max_value or x == 0:
                     continue
                 offset = x - 1
                 index = [0 for _ in range(len(dim_array))]
-                for id in range(len(dim_array) - 1, -1, -1):
+                for id in range(len(dim_array)):
                     index[id] = offset % dim_array[id]
                     offset //= dim_array[id]
+                indices.append(index)
                 w_x[tuple(index)] = i
                 w_y[tuple(index)] = j
-    
-    return w_x, w_y
+                if(x < 110):
+                    tester.append((x, index, i, j))
+    tester.sort(key=lambda f: f[0])
+    print("Test values (sorted):")
+    for x, index, i, j in tester:
+        print(f"{x}  {index}, Mesh: ({i}, {j})")
+    return w_x, w_y, indices
 
-def get_axis(w_x, w_y, target_dim):
+def get_axis(w_x, w_y, indices, target_dim, SAdim=16):
     """
     Analyze the waveform data to find the axis of the mesh.
     """
     diff = set()
-    indices = (w_x > -1).nonzero(as_tuple=False)
     for index in indices:
         if index[target_dim] + 1 != w_x.shape[target_dim]:
             x1 = w_x[tuple(index)]
@@ -96,15 +104,14 @@ def get_axis(w_x, w_y, target_dim):
     return diff
 
 
-def analyze_waveform(diff, dim_array, SAdim=16):
+def analyze_waveform(w_x, w_y, indices, dim_array, SAdim=16):
 
     X = []
     Y = []
     Div_Tiles = []
     d_2unrolls = None
     for d in range(len(dim_array)):
-        axis_diff = get_axis(w_x, w_y, d)
-        # print(f"Axis {d} differences: {axis_diff}")
+        axis_diff = get_axis(w_x, w_y, indices, d, SAdim)
         xd = 0
         yd = 0
         txd = 0
@@ -143,8 +150,10 @@ def analyze_waveform(diff, dim_array, SAdim=16):
                     tyd = -b + yd
                 if two_D == 'y':
                     txd = -a + xd
-        X.append((xd, d, txd))
-        Y.append((yd, d, tyd))
+        if xd:
+            X.append((xd, d, txd))
+        if yd:
+            Y.append((yd, d, tyd))
         if two_D is not None:
             d_2unrolls = (d, two_D)
     X = sorted(X, key=lambda f: f[0])
@@ -155,14 +164,14 @@ def analyze_waveform(diff, dim_array, SAdim=16):
         d, two_d = d_2unrolls
         Div_Tiles = [d]
     else:
-        if len(X) > 0:
-            if(X[-1][2] != SAdim - (SAdim % X[-1][0]))
-            Div_Tiles.append(X[-1][1])
-        if len(Y) > 0:
-            if(Y[-1][2] != SAdim - (SAdim % Y[-1][0]))
-            Div_Tiles.append(Y[-1][1])
-    X = [f[0] for f in X]
-    Y = [f[0] for f in Y]
+        if len(X) > 1:
+            if(X[-1][2] != SAdim - (SAdim % X[-1][0])):
+                Div_Tiles.append(X[-1][1])
+        if len(Y) > 1:
+            if(Y[-1][2] != SAdim - (SAdim % Y[-1][0])):
+                Div_Tiles.append(Y[-1][1])
+    X = [f[1] for f in X]
+    Y = [f[1] for f in Y]
     return X, Y, Div_Tiles, d_2unrolls
 
 def main():

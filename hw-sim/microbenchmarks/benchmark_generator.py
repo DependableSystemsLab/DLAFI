@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import yaml
+import os
 from typing import List, Tuple, Dict, Any
 
 from gemmini_benchmark_manager import copy_build_and_run_gemmini_benchmark
@@ -9,6 +10,7 @@ from read_waveform import parse_vcd_weight, convert_flat_to_multidim, analyze_wa
 
 # ---------- Low-level helper: build+run benchmark, parse waveform ----------
 def run_and_parse_waveform(
+    dim_size: List[int],
     header_defines: List[str],
     benchmark_name: str,
     chipyard_dir: str,
@@ -21,24 +23,30 @@ def run_and_parse_waveform(
     parses the VCD waveform, and returns:
       X, Y, Div_Tiles, dim_with_2d_unroll (or (-1, None) if no 2D unroll detected)
     """
-    with open(benchmark_name, "w") as f:
+    with open(f"{benchmark_name}.h", "w") as f:
         for line in header_defines:
             f.write(f"#define {line}\n")
-
-    copy_build_and_run_gemmini_benchmark(
-        chipyard_dir,
-        benchmark_name=benchmark_name,
-        to_build=to_build,
-        to_run=to_run,
-    )
-
+    src_c = f"{benchmark_name}.c"
+    try:
+        os.utime(src_c, None)  # touch
+    except FileNotFoundError:
+        pass
+    print(f"Generated header for {benchmark_name} with defines: {header_defines}")
+    # copy_build_and_run_gemmini_benchmark(
+    #     chipyard_dir,
+    #     benchmark_name=benchmark_name,
+    #     to_build=to_build,
+    #     to_run=to_run,
+    # )
     values = parse_vcd_weight(chipyard_dir, SA_dim)
-    wx, wy = convert_flat_to_multidim(values, SA_dim)
-    X, Y, Div_Tiles, d_2unrolls = analyze_waveform(wx, wy, SA_dim)
-
+    print("values:", values)
+    wx, wy, indices = convert_flat_to_multidim(dim_size, values, SA_dim)
+    print("wx:", wx)
+    print("wy:", wy)
+    X, Y, Div_Tiles, d_2unrolls = analyze_waveform(wx, wy, indices, dim_size, SA_dim)
     if d_2unrolls is None:
         d_2unrolls = (-1, None)  # Explicit sentinel for “no 2D unroll”
-
+    print(f"Extracted mapping: X={X}, Y={Y}, Div_Tiles={Div_Tiles}, 2D_unroll={d_2unrolls}")
     return X, Y, Div_Tiles, d_2unrolls
 
 
@@ -50,7 +58,7 @@ def test_matmul_params(dim_size: List[int], args) -> Tuple[List[int], List[int],
     assert len(dim_size) == 2
     K, J = dim_size
     header = [f"MAT_DIM_K {K}", f"MAT_DIM_J {J}"]
-    return run_and_parse_waveform(header, "DLAFI_MatMul", args.chipyard_dir, args.SA_dim, args.to_build, args.to_run)
+    return run_and_parse_waveform(dim_size, header, "DLAFI_MatMul", args.chipyard_dir, args.SA_dim, args.to_build, args.to_run)
 
 
 def test_conv_params(dim_size: List[int], args) -> Tuple[List[int], List[int], List[int], Tuple[int, Any]]:
@@ -60,7 +68,8 @@ def test_conv_params(dim_size: List[int], args) -> Tuple[List[int], List[int], L
     assert len(dim_size) == 3
     Kc, OC, IC = dim_size
     header = [f"KERNEL_DIM {Kc}", f"OUT_CHANNELS {OC}", f"IN_CHANNELS {IC}"]
-    return run_and_parse_waveform(header, "DLAFI_Conv", args.chipyard_dir, args.SA_dim, args.to_build, args.to_run)
+    modified_dim_size = [dim_size[0], dim_size[0], dim_size[1], dim_size[2]]  # Use only Kc and Kv for the benchmark
+    return run_and_parse_waveform(modified_dim_size, header, "DLAFI_Conv", args.chipyard_dir, args.SA_dim, args.to_build, args.to_run)
 
 
 def test_dwconv_params(dim_size: List[int], args) -> Tuple[List[int], List[int], List[int], Tuple[int, Any]]:
@@ -71,21 +80,19 @@ def test_dwconv_params(dim_size: List[int], args) -> Tuple[List[int], List[int],
     assert len(dim_size) == 2
     Kc, OC = dim_size
     header = [f"KERNEL_DIM {Kc}", f"OUT_CHANNELS {OC}"]
-    return run_and_parse_waveform(header, "DLAFI_DWConv", args.chipyard_dir, args.SA_dim, args.to_build, args.to_run)
+    return run_and_parse_waveform(dim_size, header, "DLAFI_DWConv", args.chipyard_dir, args.SA_dim, args.to_build, args.to_run)
 
 
 # ---------- Mapping utilities ----------
 def is_similar_mapping(map_large, map_small, target_dim: int) -> bool:
     """
-    Compare data reuse mappings ignoring the target_dim in X/Y of the *large* mapping.
+    Compare data reuse mappings.
     Returns True if (X,Y) except that dimension are identical.
     """
     Xl, Yl, _, _ = map_large
     Xs, Ys, _, _ = map_small
 
-    Xl_wo = [x for x in Xl if x != target_dim]
-    Yl_wo = [y for y in Yl if y != target_dim]
-    return Xl_wo == Xs and Yl_wo == Ys
+    return Xl == Xs and Yl == Ys
 
 
 # ---------- Search routines to generate mapping strategies ----------
@@ -95,7 +102,6 @@ def find_all_mappings_matmul(Kv: int, Vmin: int, Vmax: int, args) -> Dict[str, A
     """
     dim_size = [Kv, Kv]
     mapping_base = test_matmul_params(dim_size, args)
-
     strategies = []
     sid = 0
 
@@ -263,7 +269,7 @@ def find_all_mappings_conv(Kv: int, Kc: int, Vmin_c: int, Vmax_c: int, Vmin: int
     """
     dim_base = [Kc, Kv, Kv]
     mapping_base = test_conv_params(dim_base, args)
-
+    exit()
     strategies = []
     sid = 0
 
@@ -361,12 +367,14 @@ def generate_mappings(args) -> Dict[str, Any]:
         "SystolicArrayDimension": args.SA_dim,
         "deviceType": "SA",
     }
-
-    matmul_mapping = find_all_mappings_matmul(Kv=args.Kv, Vmin=args.Vmin, Vmax=args.Vmax, args=args)
-    dwconv_mapping = find_all_mappings_dwconv(Kv=args.Kv, Kc=args.Kc, Vmin_c=args.Vmin_c, Vmax_c=args.Vmax_c,
-                                              Vmin=args.Vmin, Vmax=args.Vmax, args=args)
+    
+    # matmul_mapping = find_all_mappings_matmul(Kv=args.Kv, Vmin=args.Vmin, Vmax=args.Vmax, args=args)
+    # dwconv_mapping = find_all_mappings_dwconv(Kv=args.Kv, Kc=args.Kc, Vmin_c=args.Vmin_c, Vmax_c=args.Vmax_c,
+    #                                           Vmin=args.Vmin, Vmax=args.Vmax, args=args)
     conv_mapping = find_all_mappings_conv(Kv=args.Kv, Kc=args.Kc, Vmin_c=args.Vmin_c, Vmax_c=args.Vmax_c,
                                           Vmin=args.Vmin, Vmax=args.Vmax, args=args)
+    print("exiting conv_mapping", conv_mapping)
+    exit()
 
     return {
         "deviceOption": device_config,
@@ -384,17 +392,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Generate YAML mapping configurations for SA kernels")
 
     # Problem sizes / sweep ranges
-    p.add_argument("--Kv", type=int, default=10, required=True,
+    p.add_argument("--Kv", type=int, default=10, required=False,
                    help="Base variable dim value (e.g., out/in channels for conv; K or J for matmul)")
-    p.add_argument("--Kc", type=int, default=5, required=True,
+    p.add_argument("--Kc", type=int, default=5, required=False,
                    help="Base kernel dim (e.g., KERNEL_DIM)")
-    p.add_argument("--Vmin", type=int, default=3, required=True,
+    p.add_argument("--Vmin", type=int, default=3, required=False,
                    help="Minimum value for variable dims")
-    p.add_argument("--Vmax", type=int, default=40, required=True,
+    p.add_argument("--Vmax", type=int, default=40, required=False,
                    help="Maximum value for variable dims")
-    p.add_argument("--Vmin_c", type=int, default=3, required=True,
+    p.add_argument("--Vmin_c", type=int, default=3, required=False,
                    help="Minimum value for controlled (kernel) dim")
-    p.add_argument("--Vmax_c", type=int, default=10, required=True,
+    p.add_argument("--Vmax_c", type=int, default=10, required=False,
                    help="Maximum value for controlled (kernel) dim")
 
     # Build/run/system
