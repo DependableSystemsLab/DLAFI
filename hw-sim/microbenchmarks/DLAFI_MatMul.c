@@ -18,6 +18,7 @@
 
 #define NO_BIAS 1
 #define FULL_BIAS_WIDTH 1
+#define MAT_DIM_I 10
 
 #if FULL_BIAS_WIDTH
 typedef acc_t ACC_T;
@@ -157,7 +158,7 @@ int main(int argc, char** argv) {
     unsigned long end = read_cycles();
     printf("Cycles taken: %u\n", end-start);
 
-    full_printMatrix(full_C);
+    // full_printMatrix(full_C);
 
   exit(0);
 }
