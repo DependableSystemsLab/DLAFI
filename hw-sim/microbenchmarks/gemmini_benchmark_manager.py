@@ -23,9 +23,11 @@ def copy_build_and_run_gemmini_benchmark(chipyard_dir, benchmark_name=None, to_b
         dst = os.path.join(chipyard_dir, rel_path)
         if os.path.isfile(src):
             shutil.copy2(src, dst)
-            print(f"Copied {src} to {dst}")
+            # print(f"Copied {src} to {dst}")
         else:
             print(f"File not found: {src}")
+            exit(1)
+    print("All files copied successfully.\n")
 
     if not to_build:
         print("Skipping build step.")
@@ -35,7 +37,7 @@ def copy_build_and_run_gemmini_benchmark(chipyard_dir, benchmark_name=None, to_b
     gemmini_sw_dir = os.path.join(chipyard_dir, "generators/gemmini/software/gemmini-rocc-tests")
     env_sh_path = os.path.join(chipyard_dir, "env.sh")
     build_cmd = f"source {env_sh_path} && ./build.sh"
-    print(f"Running: source {env_sh_path} && ./build.sh in {gemmini_sw_dir}")
+    print(f"Running: source {env_sh_path} && ./build.sh in {gemmini_sw_dir}\n")
     subprocess.run(["bash", "-c", build_cmd], cwd=gemmini_sw_dir, check=True)
 
     if not to_run:
@@ -45,7 +47,7 @@ def copy_build_and_run_gemmini_benchmark(chipyard_dir, benchmark_name=None, to_b
     # Run step
     gemmini_dir = os.path.join(chipyard_dir, "generators/gemmini")
     run_cmd = f"source {env_sh_path} && time ./scripts/run-verilator.sh {benchmark_name} --debug"
-    print(f"Running: {run_cmd} in {gemmini_dir}")
+    print(f"Running: {run_cmd} in {gemmini_dir}\n")
     subprocess.run(["bash", "-c", run_cmd], cwd=gemmini_dir, check=True)
 
 if __name__ == "__main__":
