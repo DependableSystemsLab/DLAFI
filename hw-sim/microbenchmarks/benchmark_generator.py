@@ -286,12 +286,6 @@ def find_all_mappings_conv(Kv: int, Kc: int, Vmin_c: int, Vmax_c: int, Vmin: int
         "dim_with_2d_unroll": mapping_base[3],
     })
     sid += 1
-    return {
-        "mapping_id": "mapping_conv",
-        "kernel_type": "conv",
-        "num_strategies": len(strategies),
-        "strategies": strategies,
-    }
 
     # Controlled sweep for Kc over [Vmin_c, Vmax_c]
     for val in range(Vmin_c, Vmax_c + 1):
