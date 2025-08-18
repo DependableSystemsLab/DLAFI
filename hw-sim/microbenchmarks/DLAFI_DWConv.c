@@ -149,9 +149,6 @@ int main() {
         for (int i3 = 0; i3<IN_DIM;i3++ ){
           for (int i4 = 0; i4<IN_CHANNELS;i4++ ){
             input[i1][i2][i3][i4] = 1;
-            // input[i1][i2][i3][i4] = i2+i3*8; //i4+(i3%4)*2;
-            // if(i2 == 3 && i3 == 2 && i4 == 0)
-            //   weights[i1][i2][i3][i4] = 0;
           }
         }
       }
@@ -160,51 +157,11 @@ int main() {
       for (int i2 = 0; i2<KERNEL_DIM;i2++ ){//this one doesn't affect the mac unit
         for (int i3 = 0; i3<KERNEL_DIM;i3++ ){
           for (int i4 = 0; i4<IN_CHANNELS;i4++ ){
-            // weights[i1][i2][i3][i4] = i4+i3 * IN_CHANNELS + i2 * IN_CHANNELS*KERNEL_DIM + i1  * IN_CHANNELS*KERNEL_DIM*KERNEL_DIM + 1;
             weights[i1][i2][i3][i4] = i2+i3 * KERNEL_DIM + i4 * KERNEL_DIM*KERNEL_DIM + i1  * IN_CHANNELS*KERNEL_DIM*KERNEL_DIM + 1;
-            // weights[i1][i2][i3][i4] = i4%5 + 1;
-            // weights[i1][i2][i3][i4] = i2+i3*KERNEL_DIM+ i4*KERNEL_DIM*KERNEL_DIM;
-            // if(i2 == 3 && i3 == 2 && i4 == 0)
-            //   weights[i1][i2][i3][i4] = 0;
           }
         }
       }
     }
-
-
-    // init_random(&input[0][0][0][0], sizeof(input) / sizeof(elem_t));
-    // for (int i1 = 0; i1<BATCH_SIZE;i1++ )
-    //   for (int i2 = 0; i2<IN_DIM;i2++ ){
-    //     printf("[ ");
-    //     for (int i3 = 0; i3<IN_DIM;i3++ ){
-    //       printf("(");
-    //       for (int i4 = 0; i4<IN_CHANNELS;i4++ ){
-    //         printf("%d,", input[i1][i2][i3][i4]);
-    //       }
-    //       printf(") ");
-    //     }
-    //     printf("]\n");
-    //   }
-
-    // printf("Randomize weights...\n");
-    // // init_random(&weights[0][0][0][0], sizeof(weights) / sizeof(elem_t));
-    // for (int i1 = 0; i1<OUT_CHANNELS;i1++ ){
-    //   for (int i2 = 0; i2<KERNEL_DIM;i2++ ){
-    //     printf("[ ");
-    //     for (int i3 = 0; i3<KERNEL_DIM;i3++ ){
-    //       printf("(");
-    //       for (int i4 = 0; i4<IN_CHANNELS;i4++ ){
-            
-    //         printf("%d,", weights[i1][i2][i3][i4]);
-    //       }
-    //       printf(") ");
-    //     }
-    //     printf("]\n");
-    //   }
-    //   printf("----------\n");
-    // }
-
-
 
 
     printf("Randomize bias...\n");
@@ -214,22 +171,7 @@ int main() {
         init_random_acc(&bias[0], sizeof(bias) / sizeof(acc_t));
 
     printf("bias = %d\n",bias[0]);
-    /*
-    printf("CPU conv...\n");
-    uint64_t start_cpu = read_cycles();
-    
-    conv(BATCH_SIZE, IN_CHANNELS, IN_DIM,
-            OUT_CHANNELS, KERNEL_DIM,
-            OUT_DIM,
-            STRIDE, PADDING,
-            input,
-            weights,
-            bias,
-            output);
-    
-    uint64_t end_cpu = read_cycles();
-    printf("CPU conv took %llu cycles\n", end_cpu - start_cpu);
-    */
+   
 
     static elem_t weights_mat[PATCH_SIZE][OUT_CHANNELS];
     static elem_t output_mat[N_PATCHES][OUT_CHANNELS];
@@ -240,16 +182,6 @@ int main() {
             weights,
             weights_mat);
     
-    // printf("weights_mat(Systolic Array):\n");
-    //     for (int orow = 0; orow < PATCH_SIZE; orow++) {
-    //         printf("[");
-    //         for (int ocol = 0; ocol < OUT_CHANNELS; ocol++) {
-    //             printf("%d,", weights_mat[orow][ocol]);
-    //         }
-    //         printf("\b],");
-    //     }
-    //     printf("\b\n");
-
 
     fi_config(2, 0, 0, 0, 0, 0, 6);
 
@@ -272,75 +204,7 @@ int main() {
     uint64_t end_gemmini = read_cycles();
     printf("Gemmini conv took %llu cycles\n", end_gemmini - start_gemmini);
 
-    /*
-    assert(sizeof(output_mat) == sizeof(output));
-
-    bool success = true;
-    for (int orow = 0; orow < BATCH_SIZE * OUT_DIM * OUT_DIM; orow++) {
-      for (int ocol = 0; ocol < OUT_CHANNELS; ocol++) {
-	elem_t v = output_mat[orow][ocol];
-	if (v != 21 && v != 31 && v != 46) {
-	  success = false;
-	  break;
-	}
-      }
-    }
-    */
-
-	/*
-        printf("bias:\n");
-        for (int och = 0; och < OUT_CHANNELS; och++) {
-            printf("%d,", bias[och]);
-        }
-        printf("\b\n\n");
-
-        printf("weights:\n");
-        for (int och = 0; och < OUT_CHANNELS; och++) {
-            printf("[");
-            for (int wrow = 0; wrow < KERNEL_DIM; wrow++) {
-                printf("[");
-                for (int wcol = 0; wcol < KERNEL_DIM; wcol++) {
-                    printf("[");
-                    for (int ich = 0; ich < IN_CHANNELS; ich++) {
-                        printf("%d,", weights[och][wrow][wcol][ich]);
-                    }
-                    printf("\b],");
-                }
-                printf("\b],\n");
-            }
-            printf("\b],");
-        }
-        printf("\b\n\n");
-
-        printf("weights_mat:\n");
-        for (int wrow = 0; wrow < KERNEL_DIM * KERNEL_DIM * IN_CHANNELS; wrow++) {
-            printf("[");
-            for (int wcol = 0; wcol < OUT_CHANNELS; wcol++) {
-                printf("%d,", weights_mat[wrow][wcol]);
-            }
-            printf("\b],\n");
-        }
-        printf("\b\n\n");
-
-        printf("input:\n");
-        for (int batch = 0; batch < BATCH_SIZE; batch++) {
-            printf("[");
-            for (int irow = 0; irow < IN_DIM; irow++) {
-                printf("[");
-                for (int icol = 0; icol < IN_DIM; icol++) {
-                    printf("[");
-                    for (int ich = 0; ich < IN_CHANNELS; ich++) {
-                        printf("%d,", input[batch][irow][icol][ich]);
-                    }
-                    printf("\b],");
-                }
-                printf("\b],\n");
-            }
-            printf("\b],");
-        }
-        printf("\b\n\n");
-	*/
-
+    
   
     for (int i1 = 0; i1 < BATCH_SIZE; i1++){
       for (int i4 = 0; i4 < OUT_CHANNELS; i4++)
@@ -359,15 +223,6 @@ int main() {
         printf("]\n\n");
       }
     }
-        // printf("output_mat(Systolic Array):\n");
-        // for (int orow = 0; orow < BATCH_SIZE * OUT_DIM * OUT_DIM; orow++) {
-        //     printf("[");
-        //     for (int ocol = 0; ocol < OUT_CHANNELS; ocol++) {
-        //         printf("%d,", output_mat[orow][ocol]);
-        //     }
-        //     printf("\b],");
-        // }
-        // printf("\b\n");
-
+      
     return 0;
 }
