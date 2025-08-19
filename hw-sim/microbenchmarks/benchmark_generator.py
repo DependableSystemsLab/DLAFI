@@ -560,6 +560,7 @@ def generate_mappings(args, kernels: List[str]) -> Dict[str, Any]:
     device_config = {
         "SystolicArrayDataflow": "WS",
         "SystolicArrayDimension": args.SA_dim,
+        "Sampler": args.SA_dim // 16
         "deviceType": "SA",
     }
 

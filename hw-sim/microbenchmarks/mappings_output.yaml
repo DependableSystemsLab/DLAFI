@@ -1,6 +1,7 @@
 deviceOption:
   SystolicArrayDataflow: WS
   SystolicArrayDimension: 16
+  Sampler: 1
   deviceType: SA
 SA_mappings:
 - mapping_id: mapping_matmul
