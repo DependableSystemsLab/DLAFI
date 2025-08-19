@@ -240,7 +240,7 @@ def find_all_mappings_dwconv(Kv: int, Kc: int, Vmin_c: int, Vmax_c: int, Vmin: i
 
         strategies.append({
             "strategy_id": f"strategy_{sid}",
-            "condition": [[i, "leq", l - 1]],
+            "condition": [[i + 1, "leq", l - 1]], # +1 Index shift for OC
             "X": mapping_min[0],
             "Y": mapping_min[1],
             "Divisible_tiles": mapping_min[2],
@@ -310,7 +310,7 @@ def find_all_mappings_conv(Kv: int, Kc: int, Vmin_c: int, Vmax_c: int, Vmin: int
             sid += 1
 
     # Two variable dims: IC (index 1), OC (index 2)
-    for i in (1, 3):
+    for i in range(1, 3):
         dim_min = [Kc, Kv, Kv]
         dim_min[i] = Vmin
         mapping_min = test_conv_params(dim_min, args)
@@ -332,7 +332,7 @@ def find_all_mappings_conv(Kv: int, Kc: int, Vmin_c: int, Vmax_c: int, Vmin: int
 
             strategies.append({
                 "strategy_id": f"strategy_{sid}",
-                "condition": [[i, "leq", l - 1]],
+                "condition": [[i + 1, "leq", l - 1]], # +1 Index shift for IC/OC
                 "X": mapping_min[0],
                 "Y": mapping_min[1],
                 "Divisible_tiles": mapping_min[2],
