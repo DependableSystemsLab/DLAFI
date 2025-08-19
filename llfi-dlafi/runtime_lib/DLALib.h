@@ -141,10 +141,11 @@ struct Strategy {
     std::vector<int> X;
     std::vector<int> Y;
     std::vector<int> DivisibleTiles;
+	int dim_with_2d_unroll = -1;
 };
 
 struct Mapping {
     std::vector<Strategy> strategies;
 };
 
-static std::vector<Mapping> SA_mapping_conv, SA_mapping_matmul;
+static Mapping SA_mapping_conv, SA_mapping_matmul, SA_mapping_dwconv;

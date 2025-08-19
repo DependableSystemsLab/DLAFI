@@ -33,8 +33,10 @@ extern "C" {
 #include "Utils.h"
 
     void read_SA_config() {
-        SA_mapping_conv.clear();
-        SA_mapping_matmul.clear();
+        SA_mapping_dwconv.strategies.clear();
+        SA_mapping_conv.strategies.clear();
+        SA_mapping_matmul.strategies.clear();
+        
 
         fprintf(stderr, "Read SA config!!\n");
         char SAConfigFileName[80];
@@ -77,8 +79,10 @@ extern "C" {
                         fclose(SAConfigFile); return;
                     }
                     bool is_conv = false;
+                    bool is_dwconv = false;
                     if (strncmp(line, "kernel_type=", 12) == 0) {
                         is_conv = (strstr(line, "conv") != nullptr);
+                        is_dwconv = (strstr(line, "dwconv") != nullptr);
                     } else {
                         fprintf(stderr, "ERROR: Expected kernel_type=..., got: %s", line);
                         fclose(SAConfigFile); return;
@@ -200,13 +204,25 @@ extern "C" {
                             }
                         }
 
+                        if (!fgets(line, sizeof(line), SAConfigFile)) {
+                            fprintf(stderr, "ERROR: Unexpected EOF (dim_with_2d_unroll)\n");
+                            fclose(SAConfigFile); return;
+                        }
+                        int dim_with_2d_unroll = -1;
+                        if (sscanf(line, "dim_with_2d_unroll= %d", &dim_with_2d_unroll) != 1) {
+                            fprintf(stderr, "ERROR: Failed to parse dim_with_2d_unroll, got: |%s|", line);
+                            fclose(SAConfigFile); return;
+                        }
+                        strategy.dim_with_2d_unroll = dim_with_2d_unroll;
                         mapping.strategies.push_back(strategy);
                     } // strategies
-
-                    if (is_conv) {
-                        SA_mapping_conv.push_back(mapping);
+                    if(is_dwconv) {
+                        SA_mapping_dwconv = mapping;
+                    } 
+                    else if (is_conv) {
+                        SA_mapping_conv = mapping;
                     } else {
-                        SA_mapping_matmul.push_back(mapping);
+                        SA_mapping_matmul = mapping;
                     }
                 }
             }
@@ -413,14 +429,14 @@ extern "C" {
     void locate_indices(int layerNum, int DIM, std::vector<int>& X, std::vector<int>& Y, std::vector<int>&DivisibleTiles, std::vector<int>& D, std::vector<int>& Mult, std::vector<int>& ind){
         int mul = 1;
         int real_ind = 0;
-        // fprintf(stderr,"( ");
+        // fprintf(stderr,"locate_indices start %d\n ",DIM);
         for(int id = 0 ; id < D.size(); id++){
             real_ind += ind[id] * Mult[id];
-
-            // fprintf(stderr,"%d (%d), ",ind[id],Mult[id]);
         }
 
         // fprintf(stderr," ) ");
+
+        // fprintf(stderr,"locate_indices start0\n ");
         mul = 1;
         int PE_X = 0;
         for(int ix = 0 ; ix < X.size(); ix++){
@@ -438,9 +454,13 @@ extern "C" {
                     TileX = DIM;
                 PE_X %= TileX;
             }
+            else{
+                PE_X %= DIM;
+            }
             mul *= D[X[ix]];
         }
 
+        // fprintf(stderr,"locate_indices start1\n ");
         mul = 1;
         int PE_Y = 0;
         for(int iy = 0 ; iy < Y.size(); iy++){
@@ -458,15 +478,21 @@ extern "C" {
                     TileY = DIM;
                 PE_Y %= TileY;
             }
+            else{
+                PE_Y %= DIM;
+            }   
             mul *= D[Y[iy]];
         }
 
         
+        // fprintf(stderr,"locate_indices start2 %d %d\n ", PE_X, PE_Y);
         // fprintf(stderr,"INDEX %d = (%d , %d)\n",real_ind, PE_X, PE_Y);
         if (PE_X%sampler == 0 && PE_Y%sampler == 0){
             utilization[PE_X/sampler][PE_Y/sampler][layerNum] ++;
             weight_indices_prof[PE_X/sampler][PE_Y/sampler][layerNum].insert(real_ind);
         }
+
+        // fprintf(stderr,"locate_indices end\n ");
         // else
         // fprintf(stderr,"INDEX %d = (%d , %d) sampler = %d\n",real_ind, PE_X, PE_Y, sampler);
         
@@ -497,51 +523,84 @@ extern "C" {
         // // std::vector<int> Y = {0, 1,2}; //H W C
         // if(Dim>=C*2)
         //     Y = {1,2}; // W,C
-        std::vector<int> D = {H, W, C, M}; // Update W, H, C, M as needed before calling
+        std::vector<int> D = {H, W, C, M}; // Update H, W, C, M as needed before calling
         std::vector<int> Mult(D.size(),1);
         std::vector<int> ind(D.size(), 0);
 
         std::vector<int> X, Y, DivisibleTiles;
-        for (int i = 0; i < SA_mapping_conv.size(); ++i) {
-            const Mapping& mapping = SA_mapping_conv[i];
-                for (size_t i = 0; i < mapping.strategies.size(); ++i) {
-                    const Strategy& strategy = mapping.strategies[i];
-                    bool satisfied = true;
-                    for (const auto& condition : strategy.conditions) {
-                        if (condition[1] == 0) { // eq
-                            if (D[condition[0]] != condition[2]) {
-                                satisfied = false;
-                                break;
-                            }
-                        } else if (condition[1] == -1) { // leq
-                            if (D[condition[0]] > condition[2]) {
-                                satisfied = false;
-                                break;
-                            }
-                        } else if (condition[1] == 1) { // geq
-                            if (D[condition[0]] <= condition[2]) {
-                                satisfied = false;
-                                break;
-                            }
-                        }
-                        
+        int dim_with_2d_unroll = -1;
+
+        const Mapping& mapping = (C == 1) ? SA_mapping_dwconv : SA_mapping_conv;
+        int used_strat = -1;
+        int is_default = -1;
+        for (int i = 0; i < mapping.strategies.size(); ++i) {
+            const Strategy& strategy = mapping.strategies[i];
+            bool satisfied = true;
+            for (const auto& condition : strategy.conditions) {
+                if (condition[1] == 2){ // default condition
+                    is_default = i;
+                    satisfied = false;
+                    break;
+                }
+                if (condition[1] == 0) { // eq
+                    if (D[condition[0]] != condition[2]) {
+                        satisfied = false;
+                        break;
                     }
-                    // if (!satisfied) continue; // Skip if conditions are not satisfied
-                    
-                    for (int x : strategy.X) 
-                        X.push_back(x);
-                    for (int y : strategy.Y)
-                        Y.push_back(y);
-                    for (int d : strategy.DivisibleTiles)
-                        DivisibleTiles.push_back(d);
+                } else if (condition[1] == -1) { // leq
+                    if (D[condition[0]] > condition[2]) {
+                        satisfied = false;
+                        break;
+                    }
+                } else if (condition[1] == 1) { // geq
+                    if (D[condition[0]] < condition[2]) {
+                        satisfied = false;
+                        break;
+                    }
+                }
+                
             }
+            if(satisfied)
+                used_strat = i; 
         }
+        if (used_strat == -1 && is_default != -1) 
+            used_strat = is_default;
+        if (used_strat == -1) {
+            fprintf(stderr, "No strategy found for conv layer %d with D = [%d, %d, %d, %d]\n", layerNum, D[0], D[1], D[2], D[3]);
+            return;
+        }
+        const Strategy& strategy = mapping.strategies[used_strat];
+
+        for (int x : strategy.X) 
+            X.push_back(x);
+        for (int y : strategy.Y)
+            Y.push_back(y);
+        for (int d : strategy.DivisibleTiles)
+            DivisibleTiles.push_back(d);
+        dim_with_2d_unroll = strategy.dim_with_2d_unroll;
+        
         
         int mul = 1;
         for( int i = 1 ; i < D.size(); i++){
             Mult[i] = D[i-1] * Mult[i-1];
         }
+
+        fprintf(stderr,"start Looper!? %d %d %d %d\n", D[0], D[1], D[2], D[3]);
+        fprintf(stderr,"layerNum = %d, Dim = %d, X.size() = %d, Y.size() = %d, DivisibleTiles.size() = %d\n", layerNum, Dim, X.size(), Y.size(), DivisibleTiles.size());
+        fprintf(stderr,"D = %d %d %d %d\n", D[0], D[1], D[2], D[3]);
+        fprintf(stderr,"Mult = %d %d %d %d\n", Mult[0], Mult[1], Mult[2], Mult[3]);
+        fprintf(stderr,"X = ");
+        for(int i = 0 ; i < X.size(); i++)
+            fprintf(stderr,"%d ",X[i]);
+        fprintf(stderr,"\nY = ");
+        for(int i = 0 ; i < Y.size(); i++)
+            fprintf(stderr,"%d ",Y[i]);
+        fprintf(stderr,"\nDivisibleTiles = ");
+        for(int i = 0 ; i < DivisibleTiles.size(); i++)
+            fprintf(stderr,"%d ",DivisibleTiles[i]);
+        fprintf(stderr,"\n");
         looper(0,layerNum,Dim,X,Y,DivisibleTiles,D,Mult,ind);
+        fprintf(stderr,"end Looper!?\n");
         int total_weight = 0;
         for( int i = 0 ; i < Dim/sampler;i++){
             for(int j = 0 ; j < Dim/sampler; j++){
@@ -557,68 +616,64 @@ extern "C" {
         std::vector<int> ind(D.size(), 0);
 
         std::vector<int> X, Y, DivisibleTiles;
-        for (int i = 0; i < SA_mapping_matmul.size(); ++i) {
-            const Mapping& mapping = SA_mapping_matmul[i];
-                for (size_t i = 0; i < mapping.strategies.size(); ++i) {
-                    const Strategy& strategy = mapping.strategies[i];
-                    bool satisfied = true;
-                    for (const auto& condition : strategy.conditions) {
-                        if (condition[1] == 0) { // eq
-                            if (D[condition[0]] != condition[2]) {
-                                satisfied = false;
-                                break;
-                            }
-                        } else if (condition[1] == -1) { // leq
-                            if (D[condition[0]] > condition[2]) {
-                                satisfied = false;
-                                break;
-                            }
-                        } else if (condition[1] == 1) { // geq
-                            if (D[condition[0]] <= condition[2]) {
-                                satisfied = false;
-                                break;
-                            }
-                        }
-                        
+        int dim_with_2d_unroll = -1;
+
+        const Mapping& mapping = SA_mapping_matmul;
+        int used_strat = -1;
+        int is_default = -1;
+        for (int i = 0; i < mapping.strategies.size(); ++i) {
+            const Strategy& strategy = mapping.strategies[i];
+            bool satisfied = true;
+            for (const auto& condition : strategy.conditions) {
+                if (condition[1] == 2){ // default condition
+                    is_default = i;
+                    satisfied = false;
+                    break;
+                }
+                if (condition[1] == 0) { // eq
+                    if (D[condition[0]] != condition[2]) {
+                        satisfied = false;
+                        break;
                     }
-                    if (!satisfied) continue; // Skip if conditions are not satisfied
-                    X.clear();
-                    Y.clear();
-                    DivisibleTiles.clear();
-                    for (int x : strategy.X) 
-                        X.push_back(x);
-                    for (int y : strategy.Y)
-                        Y.push_back(y);
-                    for (int d : strategy.DivisibleTiles)
-                        DivisibleTiles.push_back(d);
+                } else if (condition[1] == -1) { // leq
+                    if (D[condition[0]] > condition[2]) {
+                        satisfied = false;
+                        break;
+                    }
+                } else if (condition[1] == 1) { // geq
+                    if (D[condition[0]] < condition[2]) {
+                        satisfied = false;
+                        break;
+                    }
+                }
+                
             }
+            if(satisfied)
+                used_strat = i; 
         }
-
-        for (int i = 1; i < D.size(); i++) {
-            Mult[i] = Mult[i-1] * D[i-1];
+        if (used_strat == -1 && is_default != -1) 
+            used_strat = is_default;
+        if (used_strat == -1) {
+            fprintf(stderr, "No strategy found for conv layer %d with D = [%d, %d, %d, %d]\n", layerNum, D[0], D[1], D[2], D[3]);
+            return;
         }
-        looper(0,layerNum,Dim,X,Y,DivisibleTiles,D,Mult,ind);
+        const Strategy& strategy = mapping.strategies[used_strat];
 
-        // fprintf(stderr,"locate_Matmulweight indices layerNum= %d MAC_x= %d MAC_y= %d Dim= %d N= %d M= %d\n",layerNum,MAC_x,MAC_y,Dim,N,M);
-        // fprintf(stderr,"N\tM\tindex\n");
-        // fprintf(stderr,"-----------------------------\n");
+        for (int x : strategy.X) 
+            X.push_back(x);
+        for (int y : strategy.Y)
+            Y.push_back(y);
+        for (int d : strategy.DivisibleTiles)
+            DivisibleTiles.push_back(d);
+        dim_with_2d_unroll = strategy.dim_with_2d_unroll;
         
-        // for(int i = 0 ; i < N; i++){
-        //     if(i%Dim != MAC_y)
-        //         continue;
-        //     for(int j=0;j<M;j++){
-        //         if(j%Dim != MAC_x)
-        //             continue;
-        //         int ind = j+i*M; 
-        //         weight_indices_prof[MAC_x/sampler][MAC_y/sampler][layerNum].insert(ind);
-        //         // fprintf(stderr,"%d\t%d\t%d(%ld)\n",i,j,ind,weight_indices_prof[MAC_x][MAC_y][layerNum].size());
+        
+        int mul = 1;
+        for( int i = 1 ; i < D.size(); i++){
+            Mult[i] = D[i-1] * Mult[i-1];
+        }
 
-            
-        //     }
-        // }
-
-        // fprintf(stderr,"EXIT(0)\n");
-        // exit(0);
+        looper(0,layerNum,Dim,X,Y,DivisibleTiles,D,Mult,ind);
     }
     
     void LLTFIInjectFaultProf(char* operatorConfig, int8_t* outputPtr,

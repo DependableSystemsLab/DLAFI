@@ -258,7 +258,9 @@ def readCompileOption():
 
   fiSAconfig_File.write(f'num_mappings= {len(SA_mappings)}\n')
   for mapping in SA_mappings:
-      if "conv" in mapping["kernel_type"]:
+      if "dwconv" in mapping["kernel_type"]:
+          fiSAconfig_File.write(f'kernel_type= dwconv\n')
+      elif "conv" in mapping["kernel_type"]:
           fiSAconfig_File.write(f'kernel_type= conv\n')
       else:
           fiSAconfig_File.write(f'kernel_type= matmul\n')
@@ -289,7 +291,7 @@ def readCompileOption():
           fiSAconfig_File.write(f'len_divisible_tiles= {len(strategy["Divisible_tiles"])}\n')
           fiSAconfig_File.write(' '.join(map(str, strategy["Divisible_tiles"])) + '\n')
 
-          fiSAconfig_File.write("dim_with_2d_unroll="+str(strategy["dim_with_2d_unroll"][0])+'\n') 
+          fiSAconfig_File.write("dim_with_2d_unroll= "+str(strategy["dim_with_2d_unroll"][0])+'\n') 
 
   fiSAconfig_File.close()
   ###Instruction selection method
