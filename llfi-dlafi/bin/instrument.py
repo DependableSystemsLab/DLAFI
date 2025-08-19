@@ -286,9 +286,10 @@ def readCompileOption():
           fiSAconfig_File.write(f'len_y= {len(strategy["Y"])}\n')
           fiSAconfig_File.write(' '.join(map(str, strategy["Y"])) + '\n')
 
-          Divisible_tiles = strategy.get("Divisible_tiles", [])
-          fiSAconfig_File.write(f'len_divisible_tiles= {len(Divisible_tiles)}\n')
-          fiSAconfig_File.write(' '.join(map(str, Divisible_tiles)) + '\n')
+          fiSAconfig_File.write(f'len_divisible_tiles= {len(strategy["Divisible_tiles"])}\n')
+          fiSAconfig_File.write(' '.join(map(str, strategy["Divisible_tiles"])) + '\n')
+
+          fiSAconfig_File.write("dim_with_2d_unroll="+str(strategy["dim_with_2d_unroll"][0])+'\n') 
 
   fiSAconfig_File.close()
   ###Instruction selection method
