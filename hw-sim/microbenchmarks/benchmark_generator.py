@@ -64,8 +64,8 @@ def test_conv_params(dim_size: List[int], args) -> Tuple[List[int], List[int], L
     dim_size: [KERNEL_DIM, IN_CHANNELS, OUT_CHANNELS]  == [Kc, Kv, Kv] as you used
     """
     assert len(dim_size) == 3
-    Kc, OC, IC = dim_size
-    header = [f"KERNEL_DIM {Kc}", f"IN_CHANNELS {OC}", f"OUT_CHANNELS {IC}"]
+    Kc, IC, OC = dim_size
+    header = [f"KERNEL_DIM {Kc}", f"IN_CHANNELS {IC}", f"OUT_CHANNELS {OC}"]
     modified_dim_size = [dim_size[0], dim_size[0], dim_size[1], dim_size[2]]  # Use only Kc and Kv for the benchmark
     return run_and_parse_waveform(modified_dim_size, header, "DLAFI_Conv", args.chipyard_dir, args.SA_dim, args.to_build, args.to_run)
 
@@ -100,6 +100,7 @@ def find_all_mappings_matmul(Kv: int, Vmin: int, Vmax: int, args) -> Dict[str, A
     """
     dim_size = [Kv, Kv]
     mapping_base = test_matmul_params(dim_size, args)
+    exit()
     strategies = []
     sid = 0
 
@@ -560,7 +561,7 @@ def generate_mappings(args, kernels: List[str]) -> Dict[str, Any]:
     device_config = {
         "SystolicArrayDataflow": "WS",
         "SystolicArrayDimension": args.SA_dim,
-        "Sampler": args.SA_dim // 16
+        "Sampler": args.SA_dim // 16,
         "deviceType": "SA",
     }
 
