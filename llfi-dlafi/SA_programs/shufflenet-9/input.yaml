@@ -18,6 +18,10 @@ runOption:
 - run:
     fi_max_multiple: 1
     fi_type: stuck_at_1
-    numOfRuns: 2
+    fi_bit: 31
+    numOfRuns: 256
     window_len_multiple_endindex: 500
     window_len_multiple_startindex: 1
+    targetLayer: -1
+    totalNumLayers: -1 
+    
