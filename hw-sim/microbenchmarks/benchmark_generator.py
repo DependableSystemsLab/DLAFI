@@ -100,7 +100,6 @@ def find_all_mappings_matmul(Kv: int, Vmin: int, Vmax: int, args) -> Dict[str, A
     """
     dim_size = [Kv, Kv]
     mapping_base = test_matmul_params(dim_size, args)
-    exit()
     strategies = []
     sid = 0
 
