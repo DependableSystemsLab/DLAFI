@@ -229,65 +229,7 @@ extern "C" {
         }
 
         fclose(SAConfigFile);
-        fprintf(stderr, "done2\n");
     }
-    // //read SAConfig
-    // void read_SA_config(){
-    //     fprintf(stderr,"Read SA config!!\n");
-    //     char SAConfigFileName[80];
-    //     strncpy(SAConfigFileName, "llfi.SA.config.txt", 80);
-    //     SAConfigFile = fopen(SAConfigFileName, "r");
-    //     if (SAConfigFile == NULL) {
-    //         fprintf(stderr, "ERROR: Unable to open (read) Index stat file ! %s\n",
-    //                 SAConfigFile);
-    //         exit(1);
-    //     }
-
-    //     char line[100];
-    //     while (fgets(line, sizeof(line), SAConfigFile)) {
-    //         if (strncmp(line, "deviceType=", 11) == 0) {
-    //                 if (strncmp(line, "CPU", 3) == 0) {
-    //                     isDeviceSA = false;
-    //                 }
-    //                 else{
-    //                     isDeviceSA = true;                    
-    //                 }
-    //                 fprintf(stderr,"|||||**||||||isDeviceSA=%d \n",(int)isDeviceSA);
-    //         }
-    //         if (strncmp(line, "SystolicArrayDataflow=", 22) == 0) {
-    //                 line[strcspn(line, "\n")] = 0;
-    //                 char* arg = strtok(line, "=");
-    //                 char* value = strtok(NULL, "");
-    //                 if (strncmp(value, "OS", 2) == 0) {
-    //                     isDataflowWS = false;
-    //                 }
-    //                 else if (strncmp(value, "WS", 2) == 0){
-    //                     isDataflowWS = true;                    
-    //                 }
-    //                 fprintf(stderr,"|||||**||||||isDataflowWS=%d \n",(int)isDataflowWS);
-    //                 fprintf(stderr,line);
-    //                 fprintf(stderr,"\n\n");
-    //         }
-    //         if (strncmp(line, "SystolicArrayDimension=", 23) == 0) {
-    //                 line[strcspn(line, "\n")] = 0;
-    //                 char* arg = strtok(line, "=");
-    //                 char* value = strtok(NULL, "");
-    //                 SAdim =  atoll(value);
-    //                 fprintf(stderr,"|||||**||||||SAdim=%d \n",(int)SAdim);
-    //         }
-    //         if (strncmp(line, "SystolicArraySample=", 20) == 0) {
-    //                 line[strcspn(line, "\n")] = 0;
-    //                 char* arg = strtok(line, "=");
-    //                 char* value = strtok(NULL, "");
-    //                 sampler =  atoll(value);
-    //                 fprintf(stderr,"|||||**||||||sampler=%d \n",(int)sampler);
-    //         }
-    //     }
-    //     fclose(SAConfigFile);
-        
-    //     fprintf(stderr,"done2\n");
-    // }
-    //initilization of FI
     void read_all_indices(){
         char line[10000];
         while (fgets(line, sizeof(line), IndexFile)) {
@@ -356,18 +298,18 @@ extern "C" {
                     char* arg = strtok(line, "=");
                     char* value = strtok(NULL, "");
                     total_layers =  atoll(value);
-                    fprintf(stderr,"|||||**||||||total_layers=%d \n",(int)total_layers);
+                    // fprintf(stderr,"|||||**||||||total_layers=%d \n",(int)total_layers);
             }
             if (strncmp(line, "fi_layer", 8) == 0) {
                     line[strcspn(line, "\n")] = 0;
                     char* arg = strtok(line, "=");
                     char* value = strtok(NULL, "");
                     fi_layer =  atoll(value);
-                    fprintf(stderr,"|||||**||||||fi_layer=%d \n",(int)fi_layer);
+                    // fprintf(stderr,"|||||**||||||fi_layer=%d \n",(int)fi_layer);
             }
         }
         fclose(Layer_SAConfigFile);
-        fprintf(stderr,"done1\n");
+
     }
 
 
@@ -719,13 +661,11 @@ extern "C" {
         assert(op->kernelSize[0] == op->outputShape[1] && "The output channels are not equal to Number of Filters");
         
         read_SA_config();
-        fprintf(stderr,"here?\n");
         if(isDataflowWS){
             
             locate_weight_indices(DLALayerNum,SAdim,op->kernelSize[1],op->kernelSize[2],op->kernelSize[3],op->kernelSize[0]);
         }
         
-        fprintf(stderr,"here now?\n");
         DLALayerNum++;
     }
 
@@ -778,7 +718,6 @@ extern "C" {
 }
 
 void DLAPrintIndices(){
-    fprintf(stderr,"yo whats up! %d \n",int(isDataflowWS));
     if(isDataflowWS){
         for(int MAC_x = 0; MAC_x < SAdim/sampler; MAC_x++){
             for(int MAC_y = 0; MAC_y < SAdim/sampler; MAC_y++){
