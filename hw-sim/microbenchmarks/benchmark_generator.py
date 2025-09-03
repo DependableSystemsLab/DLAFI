@@ -113,12 +113,6 @@ def find_all_mappings_matmul(Kv: int, Vmin: int, Vmax: int, args) -> Dict[str, A
         "dim_with_2d_unroll": mapping_base[3],
     })
     sid += 1
-    return {
-        "mapping_id": "mapping_matmul",
-        "kernel_type": "matmul",
-        "num_strategies": len(strategies),
-        "strategies": strategies,
-    }
 
     # Two variable dimensions: index 0 (K), index 1 (J)
     for i in range(2):
