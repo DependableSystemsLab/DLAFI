@@ -128,7 +128,7 @@ int main(int argc, char** argv) {
 //           4.U -> (floatBits ^  (1.U << fi_bit))     // bit-flip
 //         ))
 
-     fi_config(1, 1, 0, 0, 3, 1, 0);
+     fi_config(0, 0, 0, 0, 3, 1, 0);
 
     printf("Starting gemmini matmul\n");
     unsigned long start = read_cycles();
