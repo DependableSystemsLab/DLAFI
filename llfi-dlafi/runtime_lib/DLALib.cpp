@@ -51,20 +51,20 @@ extern "C" {
         while (fgets(line, sizeof(line), SAConfigFile)) {
             if (strncmp(line, "deviceType=", 11) == 0) {
                 isDeviceSA = (strstr(line, "SA") != NULL);
-                fprintf(stderr, "|||||**||||||isDeviceSA=%d \n", (int)isDeviceSA);
+                // fprintf(stderr, "|||||**||||||isDeviceSA=%d \n", (int)isDeviceSA);
             } else if (strncmp(line, "SystolicArrayDataflow=", 22) == 0) {
                 line[strcspn(line, "\n")] = 0;
                 char* value = strchr(line, '=') + 1;
                 isDataflowWS = (strncmp(value, "WS", 2) == 0);
-                fprintf(stderr, "|||||**||||||isDataflowWS=%d \n", (int)isDataflowWS);
+                // fprintf(stderr, "|||||**||||||isDataflowWS=%d \n", (int)isDataflowWS);
             } else if (strncmp(line, "SystolicArrayDimension=", 23) == 0) {
                 line[strcspn(line, "\n")] = 0;
                 SAdim = atoi(strchr(line, '=') + 1);
-                fprintf(stderr, "|||||**||||||SAdim=%d \n", SAdim);
+                // fprintf(stderr, "|||||**||||||SAdim=%d \n", SAdim);
             } else if (strncmp(line, "SystolicArraySample=", 20) == 0) {
                 line[strcspn(line, "\n")] = 0;
                 sampler = atoi(strchr(line, '=') + 1);
-                fprintf(stderr, "|||||**||||||sampler=%d \n", sampler);
+                // fprintf(stderr, "|||||**||||||sampler=%d \n", sampler);
             } else if (strncmp(line, "num_mappings=", 13) == 0) {
                 int num_mappings = 0;
                 if (sscanf(line, "num_mappings= %d", &num_mappings) != 1) {
