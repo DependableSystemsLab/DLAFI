@@ -1,0 +1,53 @@
+deviceOption:
+  SystolicArrayDataflow: WS
+  SystolicArrayDimension: 16
+  Sampler: 1
+  deviceType: SA
+SA_mappings:
+- mapping_id: mapping_dwconv
+  kernel_type: dwconv
+  num_strategies: 1
+  strategies:
+  - strategy_id: strategy_0
+    condition:
+    - [-1, default, -1]
+    X: [1]
+    Y: [2]
+    Divisible_tiles: []
+    dim_with_2d_unroll: [-1, null]
+- mapping_id: mapping_conv
+  kernel_type: conv
+  num_strategies: 3
+  strategies:
+  - strategy_id: strategy_0
+    condition:
+    - [-1, default, -1]
+    X: [2, 1]
+    Y: [3]
+    Divisible_tiles: []
+    dim_with_2d_unroll: [-1, null]
+  - strategy_id: strategy_1
+    condition:
+    - [2, leq, 8]
+    X: [2, 1]
+    Y: [3]
+    Divisible_tiles: [1]
+    dim_with_2d_unroll: [-1, null]
+  - strategy_id: strategy_2
+    condition:
+    - [2, geq, 9]
+    X: [2]
+    Y: [3]
+    Divisible_tiles: []
+    dim_with_2d_unroll: [-1, null]
+- mapping_id: mapping_matmul
+  kernel_type: matmul
+  num_strategies: 1
+  strategies:
+  - strategy_id: strategy_0
+    condition:
+    - [-1, default, -1]
+    X: [1]
+    Y: [0]
+    Divisible_tiles: []
+    dim_with_2d_unroll: [-1, null]
