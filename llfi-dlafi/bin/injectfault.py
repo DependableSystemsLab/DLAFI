@@ -20,6 +20,7 @@ Prerequisite:
 # This script should be run after the profiling step
 
 import sys, os, subprocess
+from pathlib import Path
 import yaml
 import time
 import random
@@ -72,6 +73,24 @@ def parseArgs(args):
     print("Change directory to:", basedir)
     os.chdir(basedir)
 
+def checkSAInputYaml():
+  global SAdoc
+  yamldir = os.path.dirname(os.path.dirname(fi_exe))
+  try:
+    f = open(os.path.join(basedir, 'SAinput.yaml'),'r')
+  except:
+    usage("No SAinput.yaml file in the parent directory of fault injection executable")
+    exit(1)
+
+  #Check for input.yaml's correct formmating
+  try:
+    SAdoc = yaml.load(f, Loader=yaml.SafeLoader)
+  except:
+    f.close()
+    usage("SAinput.yaml is not formatted in proper YAML (reminder: use spaces, not tabs3)")
+    exit(1)
+  finally:
+    f.close()
 
 def checkInputYaml():
   global doc
@@ -275,31 +294,6 @@ def readCycles():
 
   profinput.close()
 
-def readMyConfigs():
-  
-  myconfigs= open("my.configs.txt","r")
-  my_fi_type = "stuck_at_0"
-  my_fi_bit = 0
-  while 1:
-    line = myconfigs.readline()
-    if not line:
-      break
-    if line.strip():
-      # skip comments
-      if line.startswith("#"):
-        continue
-      label, value = line.split("=")
-
-      # parse the line
-      if label == 'fi_type':
-        if int(value) == 1:
-          my_fi_type = "stuck_at_1"
-
-      elif label == 'fi_bit':
-        my_fi_bit = int(value)
-
-  myconfigs.close()
-  return my_fi_type,my_fi_bit
 
 ################################################################################
 def checkValues(key, val, var1 = None,var2 = None,var3 = None,var4 = None):
@@ -382,10 +376,11 @@ def checkValues(key, val, var1 = None,var2 = None,var3 = None,var4 = None):
 ################################################################################
 def main(args):
   global optionlist, outputfile, totalcycles,run_id, return_codes
-  global defaultTimeout
+  global defaultTimeout, SAdoc
 
   parseArgs(args)
   checkInputYaml()
+  checkSAInputYaml()
   config()
 
   # get total num of cycles
@@ -399,7 +394,7 @@ def main(args):
     print("ERROR: Please include runOption in input.yaml.")
     exit(1)
   try:
-    dOpt = doc["deviceOption"]
+    dOpt = SAdoc["deviceOption"]
   except:
     dOpt = None
   if not os.path.isfile(fi_exe):
@@ -593,17 +588,19 @@ def main(args):
       if(dOpt["deviceType"] != "CPU"):
         Mac_x = 0
         Mac_y = 0
-        fi_bit = 29
-        fi_type = "stuck_at_0"
-        fi_type, fi_bit = readMyConfigs()
+        fi_bit = run["run"]["fi_bit"]
+        fi_type = run["run"]["fi_type"]
         SADim = dOpt["SystolicArrayDimension"]
+        run_number=run["run"]["numOfRuns"]
         if("Sampler" not in dOpt):
           dOpt["Sampler"] = 1
-        print("run_number, SADim, fi_type, fi_bit:",run_number, SADim, fi_type, fi_bit)
-        # assert run_number == SADim * SADim * 2 * 6,"number of runs should be the same as DIM*DIM*32*2" 
-        if(run_number != SADim * SADim * 2 * 6):
-          print("number of runs should be the same as DIM*DIM*32*2")
-        
+      targetLayer = run["run"]["targetLayer"]
+      totalNumLayers = run["run"]["totalNumLayers"]
+      SALayerfilename = Path("my.layer_SA.config.txt")
+
+      with SALayerfilename.open("w") as f:  # write mode = writable, creates if missing
+          f.write(f"fi_layer={targetLayer}\n")
+          f.write(f"total_layers={totalNumLayers}\n")
       # fault injection
       with open('./llfi/numfaults.txt', 'w') as file:
         pass
