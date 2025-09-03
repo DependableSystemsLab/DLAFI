@@ -1,16 +1,16 @@
 printf "[Compile Script]: Getting the ONNX model\n"
 
-FILE=shufflenet-9.onnx
+FILE=inception-v1-12.onnx
 if [ -f "$FILE" ]; then
     echo "$FILE exists."
 else
     echo "$FILE does not exist."
-    wget https://media.githubusercontent.com/media/onnx/models/refs/heads/main/validated/vision/classification/shufflenet/model/shufflenet-9.onnx
+    wget https://media.githubusercontent.com/media/onnx/models/refs/heads/main/validated/vision/classification/inception_and_googlenet/inception_v1/model/$FILE
 fi
 
 printf "\n[Compile Script]: Convert TF model to LLVM IR\n"
-onnx-mlir --EmitLLVMIR  --instrument-onnx-ops="ALL" --InstrumentBeforeAndAfterOp shufflenet-9.onnx --lltfi-fi 
-mlir-translate -mlir-to-llvmir shufflenet-9.onnx.mlir > model.mlir.ll
+onnx-mlir --EmitLLVMIR  --instrument-onnx-ops="ALL" --InstrumentBeforeAndAfterOp $FILE --lltfi-fi 
+mlir-translate -mlir-to-llvmir $FILE.mlir > model.mlir.ll
 
 printf "\n[Compile Script]: Compile main driver program and link to TF model in LLVM IR\n"
 clang++ -DONNX_ML=1 input.c -o main.ll -O0 -S -emit-llvm -lonnx_proto -lprotobuf -I$ONNX_MLIR_SRC/include 
