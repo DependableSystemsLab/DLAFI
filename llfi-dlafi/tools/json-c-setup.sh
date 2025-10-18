@@ -12,4 +12,4 @@ cmake -G Ninja ..
 ninja -j10 -k10
 
 echo " \n\n\n Installing json-c library. Please enter your password: \n\n"
-sudo ninja install
+ninja install
