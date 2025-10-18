@@ -33,7 +33,7 @@ fi
 echo "Distributing mappings to all SA_programs subdirectories..."
 for d in "$LLFI_SA_DIR"/*/; do
     if [ -d "$d" ]; then
-        echo "→ Copying to: $d"
+        echo " Copying to: $d"
         cp "$SOURCE_FILE" "$d/SAinput.yaml"
     fi
 done
