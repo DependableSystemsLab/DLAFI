@@ -91,4 +91,9 @@ source pytorch-env/bin/activate
 python -m pip install --upgrade pip
 pip install --no-cache-dir -r requirements.txt
 
+# Ensuring all compile.sh and runllfi.sh files under SA_programs are executable...\n
+find "$DLAFI_ROOT/llfi-dlafi/SA_programs" -type f -name "compile.sh" -exec chmod +x {} \;
+find "$DLAFI_ROOT/llfi-dlafi/SA_programs" -type f -name "runllfi.sh" -exec chmod +x {} \;
+
+
 echo "========= DLAFI INSTALLATION COMPLETE ========="
