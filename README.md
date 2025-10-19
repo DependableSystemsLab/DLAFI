@@ -10,21 +10,12 @@ This repository contains DLAFI, a hardware-aware, software-level fault-injection
 - [Overview](#overview)
 - [Repository layout](#repository-layout)
 - [Requirements](#requirements)
-- [Environment variables](#environment-variables)
 - [How to install](#how-to-install)
-  - [Build inside Docker (recommended)](#build-inside-docker-recommended)
-  - [Manual install steps (if not using Docker)](#manual-install-steps-if-not-using-docker)
+  - [Build inside Docker](#build-inside-docker)
+  - [Environment variables](#environment-variables)
 - [Getting started (quick run)](#getting-started-quick-run)
-- [Detailed workflow & commands](#detailed-workflow--commands)
-  - [Build LLVM](#build-llvm)
-  - [Install Protobuf](#install-protobuf)
-  - [Build ONNX-MLIR (LLTFI branch)](#build-onnx-mlir-lltfi-branch)
-  - [Install DLAFI & PyTorch-FI](#install-dlafi--pytorch-fi)
-  - [Install Chipyard + Gemmini (if doing HW sims)](#install-chipyard--gemmini-if-doing-hw-sims)
-- [Run the pipeline](#run-the-pipeline)
-- [Reproducing experiments](#reproducing-experiments)
-- [Troubleshooting & tips](#troubleshooting--tips)
-- [Acknowledgements & references](#acknowledgements--references)
+   - [Basic usage](#basic-usage)
+   - [What the script does internally](#what-the-script-does-internally)
 
 ---
 
@@ -41,9 +32,9 @@ If you want to understand the theoretical details, experimental setup, and resul
 ├─ hw-sim/                # microbenchmarks, generator scripts
 ├─ llfi-dlafi/            # LLFI integration and SA_programs (SA microbenchmarks)
 ├─ pytorch-fi/            # application-level PyTorch FI and evaluation scripts
-─ install_script.sh      # top-level installer (builds LLVM, ONNX-MLIR, DLAFI)
-├─ install_chipyard_gemmini.sh  # installs Chipyard + Gemmini (HW sim support)
-├─ run_dlafi_pipeline.sh    # installation scripts and getting strated script
+├─ install_script.sh      # top-level installer (builds LLVM, ONNX-MLIR, DLAFI)
+├─ install_hw_sim_script.sh  # installs Chipyard + Gemmini (HW sim support)
+├─ quick_run.sh    # installation scripts and getting strated script
 ├─ Dockerfile
 └─ README.md (this file)
 ```
@@ -108,22 +99,22 @@ cd $DLAFI_ROOT
 bash install_script.sh
 
 # (Optional) To install Chipyard + Gemmini for HW sims, Note that it will take several hours to install:
-bash install_chipyard_gemmini.sh
+bash install_hw_sim_script.sh
 ```
 
 ---
 ## Getting started (quick run)
-After completing installation, you can execute a minimal DLAFI flow — consisting of **mapping generation → LLVM‑level fault injection → PyTorch‑FI evaluation** — using the helper script `run_getting_started.sh`.
+After completing installation, you can execute a minimal DLAFI flow — consisting of **mapping generation → LLVM‑level fault injection → PyTorch‑FI evaluation** — using the helper script `quick_run.sh`.
 
 ### Basic usage
 To run only the LLVM‑level FI and compare it with PyTorch‑FI results:
 ```bash
-bash run_getting_started.sh --llvm-fi --pytorch-fi
+bash quick_run.sh --llvm-fi --pytorch-fi
 ```
 
 If you have also installed the hardware simulation components (Chipyard + Gemmini), you can execute the full end‑to‑end flow:
 ```bash
-bash run_getting_started.sh --all
+bash quick_run.sh --all
 ```
 
 ### What the script does internally
