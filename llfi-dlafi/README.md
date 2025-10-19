@@ -1,4 +1,4 @@
-LLTFI
+DLAFI LLVM-based Fault Injection (built on top of LLTFI)
 =====
 LLTFI (Low-Level Tensor Fault Injector) is a unified SWiFI (Software-implemented fault injection) tool that supports fault injection of both C/C++ programs and ML applications written using high-level frameworks such as TensorFlow and PyTorch.
 
